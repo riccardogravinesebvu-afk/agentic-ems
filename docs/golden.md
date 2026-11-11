@@ -23,6 +23,7 @@ This page says how the questions and their answers were made, what was checked, 
   query (`reference_sql.toml`) and a second computation in plain Python over the raw rows
   (`reference_py.py`). The two were written from the same specification (the question,
   `docs/schema.md` and the design) by two separate writers who did not see each other's work.
+  The two were kept apart by instruction in a shared working tree, not by a technical barrier.
   One command, `uv run python -m agentic_ems.benchmark.verify`, rebuilds the database from the
   seed, runs both and compares them row by row with the scorer's tolerance (0.1% relative,
   0.001 absolute when the reference is zero). It runs offline with no API key.

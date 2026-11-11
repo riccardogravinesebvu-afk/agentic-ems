@@ -3,8 +3,10 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import duckdb
+import pytest
 
 from agentic_ems.generator import POWER, generate
+from agentic_ems.semantic import open_db
 
 ROME = ZoneInfo("Europe/Rome")
 TABLES = ["meter", "reading", "tariff", "production_order", "dataset_info"]
@@ -35,8 +37,14 @@ def test_same_seed_same_database(tmp_path):
     assert fingerprint(tmp_path / "c.duckdb")["sum_kwh"] != first["sum_kwh"]
 
 
-def test_parent_margin_holds_every_interval(con):
-    rows = con.execute("""
+@pytest.fixture(params=["db_path", "full_db_path"])
+def two_weeks_and_year(request):
+    """The two-week sample with the autumn clock change, and the whole year."""
+    return open_db(request.getfixturevalue(request.param)).cursor()
+
+
+def test_parent_margin_holds_every_interval(two_weeks_and_year):
+    rows = two_weeks_and_year.execute("""
         WITH children AS (
             SELECT m.parent_id, r.ts_utc, sum(r.kwh) AS total
             FROM reading r JOIN meter m USING (meter_id)
@@ -78,7 +86,8 @@ def test_spring_day_has_92_intervals(tmp_path):
     assert count == (92,)
 
 
-def test_orders_never_overlap_on_a_line(con):
+def test_orders_never_overlap_on_a_line(two_weeks_and_year):
+    con = two_weeks_and_year
     assert con.execute("SELECT count(*) FROM production_order").fetchall()[0][0] > 0
     overlaps = con.execute("""
         SELECT count(*) FROM production_order a JOIN production_order b

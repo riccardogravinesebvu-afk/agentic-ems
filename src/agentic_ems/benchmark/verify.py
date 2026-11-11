@@ -3,14 +3,13 @@
 Run with: uv run python -m agentic_ems.benchmark.verify
 """
 
-import math
 import sys
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from agentic_ems.benchmark.reference_py import ANSWERS, Data
+from agentic_ems.benchmark.scorer import rows_match
 from agentic_ems.generator import generate
 from agentic_ems.semantic import DEFAULT_DB, execute_limited, load_catalog, open_db
 
@@ -21,9 +20,10 @@ CATEGORIES = {"double_count", "children_sum", "separate_peaks", "extra_rows"}
 COLUMN_FORMS = {
     "meter_id": "meter_id, the meter's id as shown in the meter tree, not its name",
     "bucket_start": "bucket_start, the start of the time bucket in plant local time as ISO 8601 text with the UTC "
-    "offset, for example 2026-10-25T02:00:00+01:00",
+    "offset, for example 2026-03-18T14:00:00+01:00",
     "tariff_band": "tariff_band, which is F1, F2 or F3",
 }
+VALUE_FORM = "value, which is a number, or null where the question has no value for that row"
 
 
 @dataclass
@@ -46,8 +46,8 @@ class Truth:
 def shape_line(keys: list[str]) -> str:
     """The fixed answer-format sentence appended to every question, the same for both arms."""
     if not keys:
-        return "Answer with a single row with one column, value, which is one number."
-    columns = "; ".join([COLUMN_FORMS[key] for key in keys] + ["value, which is one number"])
+        return f"Answer with a single row with one column, {VALUE_FORM}."
+    columns = "; ".join([COLUMN_FORMS[key] for key in keys] + [VALUE_FORM])
     return f"Answer with one row per {' and '.join(keys)}, with these columns in this order: {columns}."
 
 
@@ -76,41 +76,6 @@ def load_truth(con) -> dict[str, Truth]:
     return truth
 
 
-def _key(column: str, value):
-    if column == "bucket_start" and isinstance(value, str):
-        value = datetime.fromisoformat(value)
-    if isinstance(value, datetime) and value.tzinfo is not None:
-        return value.timestamp()  # compare instants, not text
-    return value
-
-
-def _by_key(columns: list[str], rows: list[tuple], keys: list[str]) -> dict | None:
-    if not {*keys, "value"} <= set(columns):
-        return None
-    index = [columns.index(k) for k in keys]
-    value = columns.index("value")
-    found = {tuple(_key(k, row[i]) for k, i in zip(keys, index)): row[value] for row in rows}
-    return found if len(found) == len(rows) else None  # a repeated key is a row the reference does not have
-
-
-def _same(value, reference) -> bool:
-    if value is None or reference is None:
-        return value is None and reference is None
-    value, reference = float(value), float(reference)
-    if reference == 0:
-        return abs(value) <= 0.001
-    return math.isclose(value, reference, rel_tol=0.001)
-
-
-# shortcut: local stand-in with the scorer's numbers; replace with the scorer's function when it exists.
-def rows_agree(columns: list[str], rows: list[tuple], ref_columns: list[str], ref_rows: list[tuple], keys) -> bool:
-    """Rows matched by key columns (bucket_start as an instant), values within 0.1% (0.001 at zero), order ignored."""
-    mine, reference = _by_key(columns, rows, keys), _by_key(ref_columns, ref_rows, keys)
-    if mine is None or reference is None or mine.keys() != reference.keys():
-        return False
-    return all(_same(mine[k], reference[k]) for k in reference)
-
-
 def main() -> int:
     generate(DEFAULT_DB)
     con = open_db(DEFAULT_DB)
@@ -123,8 +88,8 @@ def main() -> int:
             print(f"{q.id} no reference (unanswerable)")
             continue
         checked += 1
-        agree = rows_agree(*ANSWERS[q.id](data), *reference, q.keys)
-        clashes = [c for c, columns, rows in truth[q.id].wrong if rows_agree(columns, rows, *reference, q.keys)]
+        agree = rows_match(*ANSWERS[q.id](data), *reference, q.keys)
+        clashes = [c for c, columns, rows in truth[q.id].wrong if rows_match(columns, rows, *reference, q.keys)]
         line = f"{q.id} {'agree' if agree else 'DISAGREE'} {len(reference[1])} rows"
         if clashes:
             line += f"; wrong answer equals reference: {', '.join(clashes)}"

@@ -30,6 +30,11 @@
   about a third, and the question is constructed rather than one plant staff would ask. The id
   O12 is not reused. The out-of-scope group has 13 questions. The same review added a
   `children_sum` wrong answer to H19 (the two Painting lines summed).
+- The writer of the second computation (`reference_py.py`) read the controller's progress
+  notes, which contained two figures from a reviewer: one for the two-line peak question and
+  one for the threshold-hours question. The writer states it did not use them. A reviewer
+  comparing the two computations found the second one written from the rules by a different
+  method.
 
 ## Owner rewording
 

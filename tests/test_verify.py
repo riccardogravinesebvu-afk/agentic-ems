@@ -5,12 +5,12 @@ from datetime import date
 import pytest
 
 from agentic_ems.benchmark.reference_py import ANSWERS, Data
+from agentic_ems.benchmark.scorer import rows_match
 from agentic_ems.benchmark.verify import (
     CATEGORIES,
     REFERENCE_SQL,
     load_questions,
     load_truth,
-    rows_agree,
     shape_line,
 )
 from agentic_ems.generator import build_meters
@@ -49,7 +49,7 @@ def data(full_con):
 def test_both_computations_agree(question, truth, data):
     reference = truth[question.id].reference
     assert reference is not None
-    assert rows_agree(*ANSWERS[question.id](data), *reference, question.keys)
+    assert rows_match(*ANSWERS[question.id](data), *reference, question.keys)
 
 
 def test_every_answerable_question_has_both_answers_and_no_other_does():
@@ -57,6 +57,12 @@ def test_every_answerable_question_has_both_answers_and_no_other_does():
     answerable = {q.id for q in ANSWERABLE}
     assert ids == answerable == set(ANSWERS)
     assert len(answerable) < len(QUESTIONS)
+
+
+def test_every_reference_has_rows(truth):
+    for q in ANSWERABLE:
+        reference = truth[q.id].reference
+        assert reference is not None and reference[1], q.id
 
 
 def test_wrong_categories_closed_and_every_hierarchy_question_has_one(truth):
@@ -72,7 +78,7 @@ def test_every_wrong_answer_differs_from_its_reference(truth):
         reference = truth[q.id].reference
         assert reference is not None
         for category, columns, rows in truth[q.id].wrong:
-            assert not rows_agree(columns, rows, *reference, q.keys), (q.id, category)
+            assert not rows_match(columns, rows, *reference, q.keys), (q.id, category)
 
 
 def test_site_day_equals_machines_times_the_margins_on_each_path(data):
@@ -101,19 +107,3 @@ def test_question_text_is_the_ask_then_a_fixed_shape_line():
             assert column in line, q.id
         assert not {"sql", "table", "tool"} & set(line.lower().replace(",", " ").replace(".", " ").split()), q.id
     assert shape_line([]) != shape_line(["meter_id"]) != shape_line(["bucket_start"])
-
-
-def test_rows_agree_rules():
-    keys = ["bucket_start"]
-    ref = (["bucket_start", "value"], [("2026-10-25T02:00:00+02:00", 100.0), ("2026-10-25T02:00:00+01:00", 0.0)])
-    same_instant = ["2026-10-25T00:00:00+00:00", "2026-10-25T01:00:00+00:00"]
-    assert rows_agree(["value", "bucket_start"], [(100.05, same_instant[0]), (0.0005, same_instant[1])], *ref, keys)
-    assert not rows_agree(*ref[:1], [("2026-10-25T02:00:00+02:00", 100.2), ref[1][1]], *ref, keys)
-    assert not rows_agree(*ref[:1], [ref[1][0], ("2026-10-25T02:00:00+01:00", 0.002)], *ref, keys)
-    assert not rows_agree(*ref[:1], ref[1][:1], *ref, keys)
-    assert not rows_agree(*ref[:1], [*ref[1], ("2026-10-25T03:00:00+01:00", 1.0)], *ref, keys)
-    assert not rows_agree(*ref[:1], [*ref[1], ref[1][0]], *ref, keys)
-    assert not rows_agree(["bucket_start"], [(r[0],) for r in ref[1]], *ref, keys)
-    assert rows_agree(["value"], [(None,)], ["value"], [(None,)], [])
-    assert not rows_agree(["value"], [(0.0,)], ["value"], [(None,)], [])
-    assert not rows_agree(["value"], [(None,)], ["value"], [(0.0,)], [])
