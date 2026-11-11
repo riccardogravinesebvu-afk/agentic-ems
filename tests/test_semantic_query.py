@@ -13,6 +13,7 @@ from agentic_ems.semantic import (
     query,
 )
 
+CROSS_JOIN = "SELECT sum(a.range * b.range) FROM range(100000000) a, range(100000000) b"
 PERIOD = {"start": "2026-10-19", "end": "2026-11-01"}
 
 
@@ -60,8 +61,32 @@ def test_timeout_is_a_limit_error(tmp_path, monkeypatch):
     path = tmp_path / "slow.duckdb"
     duckdb.connect(str(path)).close()
     monkeypatch.setattr(semantic, "TIME_LIMIT_MS", 200)
-    with pytest.raises(LimitError, match="seconds"):
-        execute_limited(open_db(path), "SELECT sum(a.range * b.range) FROM range(100000000) a, range(100000000) b")
+    with pytest.raises(LimitError, match=r"time limit of 0\.2 seconds"):
+        execute_limited(open_db(path), CROSS_JOIN)
+
+
+def test_timeout_message_names_the_real_limit():
+    # The message comes from TIME_LIMIT_MS; a short engine timeout avoids waiting the real 10 seconds.
+    con = duckdb.connect()
+    con.execute("SET max_execution_time = 200")
+    with pytest.raises(LimitError, match="time limit of 10 seconds"):
+        execute_limited(con, CROSS_JOIN)
+
+
+def test_lockdown_covers_cursor_and_second_connection(db_path, con):
+    settings = (
+        "SELECT current_setting('enable_external_access'), current_setting('autoinstall_known_extensions'), "
+        "current_setting('autoload_known_extensions'), current_setting('max_execution_time'), "
+        "current_setting('lock_configuration')"
+    )
+    second = duckdb.connect(str(db_path), read_only=True)
+    try:
+        for connection in (con.cursor(), second):
+            assert connection.execute(settings).fetchall() == [(False, False, False, 10000, True)]
+    finally:
+        second.close()
+    with pytest.raises(duckdb.Error):
+        con.cursor().execute("SET SESSION max_execution_time = 0")
 
 
 def test_open_db_is_cached(db_path, con):
