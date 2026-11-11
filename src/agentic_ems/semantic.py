@@ -4,11 +4,14 @@ Every request is checked here before any SQL is built. The central rule: a meter
 added to one of its own ancestors, because the ancestor's reading already includes it.
 """
 
+import functools
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict
+import duckdb
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 Level = Literal["site", "department", "line", "machine"]
 Grain = Literal["15min", "hour", "day", "month", "total"]
@@ -185,7 +188,7 @@ def compile(request: MetricRequest, catalog: Catalog) -> Compiled:
     """Turn a valid request into SQL with bound parameters; identifiers come only from closed sets."""
     validate(request, catalog)
     if request.meters is not None:
-        scope = request.meters
+        scope = list(request.meters)
     else:
         node = request.node if request.node is not None else "site"
         scope = (
@@ -220,6 +223,71 @@ def compile(request: MetricRequest, catalog: Catalog) -> Compiled:
         ]
         sql += f" GROUP BY {', '.join(exprs)} ORDER BY {', '.join(order)}"
     return Compiled(sql, [scope, request.start, request.end], [name for _, name in keys] + ["value"])
+
+
+DEFAULT_DB = Path(__file__).resolve().parents[2] / "data" / "plant.duckdb"
+ROW_LIMIT = 5000
+TIME_LIMIT_MS = 10000
+
+
+@dataclass
+class QueryResult:
+    columns: list[str]
+    rows: list[tuple]
+    sql: str
+    params: list
+
+
+class LimitError(RuntimeError):
+    """A query went past the row limit or the time limit."""
+
+
+def open_db(path: Path | str = DEFAULT_DB) -> duckdb.DuckDBPyConnection:
+    """The one read-only, locked-down connection per database file in this process."""
+    return _open_db(Path(path).resolve())
+
+
+@functools.cache
+def _open_db(path: Path) -> duckdb.DuckDBPyConnection:
+    if not path.exists():
+        raise FileNotFoundError("data/plant.duckdb not found. Run: uv run python -m agentic_ems.generator")
+    con = duckdb.connect(str(path), read_only=True)
+    # GLOBAL: these settings cover the whole instance, so every cursor and connection on it; the lock goes last.
+    for setting in (
+        "enable_external_access = false",
+        "autoinstall_known_extensions = false",
+        "autoload_known_extensions = false",
+        f"max_execution_time = {TIME_LIMIT_MS}",
+        "lock_configuration = true",
+    ):
+        con.execute(f"SET GLOBAL {setting}")
+    return con
+
+
+def execute_limited(con, sql: str, params: list | None = None) -> tuple[list[str], list[tuple]]:
+    try:
+        result = con.execute(sql, params)
+        columns = [column[0] for column in result.description]
+        rows = result.fetchmany(ROW_LIMIT + 1)
+    except duckdb.InterruptException as exc:
+        raise LimitError(f"the query ran past the time limit of {TIME_LIMIT_MS / 1000:g} seconds") from exc
+    if len(rows) > ROW_LIMIT:
+        raise LimitError(f"the result has more than {ROW_LIMIT:,} rows; ask for a coarser grain or a smaller scope")
+    return columns, rows
+
+
+def query(request: MetricRequest | dict, con, catalog: Catalog) -> QueryResult:
+    """The single entry point: validate, compile, execute within the limits, return the rows with the SQL."""
+    if isinstance(request, dict):
+        try:
+            request = MetricRequest.model_validate(request)
+        except ValidationError as exc:
+            raise RequestError(
+                "; ".join(f"{'.'.join(map(str, error['loc'])) or 'request'}: {error['msg']}" for error in exc.errors())
+            ) from None
+    compiled = compile(request, catalog)
+    columns, rows = execute_limited(con, compiled.sql, compiled.params)
+    return QueryResult(columns, rows, compiled.sql, compiled.params)
 
 
 def catalogue_text(catalog: Catalog) -> str:

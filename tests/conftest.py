@@ -1,9 +1,9 @@
 from datetime import date
 
-import duckdb
 import pytest
 
 from agentic_ems.generator import generate
+from agentic_ems.semantic import open_db
 
 
 @pytest.fixture(scope="session")
@@ -15,9 +15,7 @@ def db_path(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def con(db_path):
-    connection = duckdb.connect(str(db_path), read_only=True)
-    yield connection
-    connection.close()
+    return open_db(db_path)
 
 
 @pytest.fixture(scope="session")

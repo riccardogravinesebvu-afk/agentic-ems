@@ -169,6 +169,8 @@ def test_compile_is_pure():
     first, second = compile(req, catalog), compile(req, catalog)
     assert (first.sql, first.params, first.columns) == (second.sql, second.params, second.columns)
     assert first.params == [["line_a1"], PERIOD["start"], PERIOD["end"]]
+    listed = request(meters=["line_a1"])
+    assert compile(listed, catalog).params[0] is not listed.meters
 
 
 def test_no_literal_values_in_sql(catalog):
