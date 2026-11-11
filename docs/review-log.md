@@ -11,7 +11,7 @@
 - The controller made these decisions under the owner's standing instruction to take the most
   rigorous option:
   - H19's correct answer is the department's own meter alone.
-  - O7, O8, O12 and O13 ask for a single value (one product, weekends only, the average per
+  - O7, O8, O12 (later rejected, below) and O13 ask for a single value (one product, weekends only, the average per
     day), so their answers have an honest key.
   - M4 asks for one whole day at 15-minute grain, because a request period is whole dates.
   - The question that adds the solar array's production to the plant's consumption (draft H21)
@@ -24,6 +24,12 @@
   Confirmed on the data: for H10 the coincident peak is clearly below the sum of the separate
   peaks; for O11 the threshold is crossed during many hours; for M3 night-shift orders cross
   midnight in the chosen week.
+- A second reader reviewed the hand-written reference queries on the same day. After that
+  review the controller rejected O12 (energy per hood): a second defensible reading, both
+  Painting lines' kWh whenever a Hood order runs on either line, differs from the reference by
+  about a third, and the question is constructed rather than one plant staff would ask. The id
+  O12 is not reused. The out-of-scope group has 13 questions. The same review added a
+  `children_sum` wrong answer to H19 (the two Painting lines summed).
 
 ## Owner rewording
 

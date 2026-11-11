@@ -679,6 +679,15 @@ WHERE meter_id IN ('dept_c', 'line_c2')
   AND local_date >= DATE '2026-01-01' AND local_date < DATE '2026-02-01'
 """
 
+[[H19.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_c1', 'line_c2')
+  AND local_date >= DATE '2026-01-01' AND local_date < DATE '2026-02-01'
+"""
+
 # Everything in Welding added up is the department's own meter.
 [H20]
 sql = """
@@ -1091,19 +1100,6 @@ SELECT count(*) FILTER (WHERE kwh * 4 > 1500) / 4 AS value
 FROM reading
 WHERE meter_id = 'site'
   AND local_date >= DATE '2026-05-01' AND local_date < DATE '2026-06-01'
-"""
-
-# Painting lines' kWh in intervals covered by a Hood order, over the Hood units spread over
-# those intervals, both cut to March 2026 local dates.
-[O12]
-sql = """
-SELECT sum(r.kwh) / sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)) AS value
-FROM reading r
-JOIN production_order o
-  ON o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc
-WHERE o.product = 'Hood'
-  AND r.meter_id IN ('line_c1', 'line_c2')
-  AND r.local_date >= DATE '2026-03-01' AND r.local_date < DATE '2026-04-01'
 """
 
 [O13]

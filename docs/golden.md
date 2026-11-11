@@ -1,7 +1,7 @@
 # Benchmark answer set: how it was built and what it is worth
 
-The benchmark has 48 answerable questions in four groups (hierarchy, control, metric
-definition, out of scope) and 8 unanswerable ones, in `src/agentic_ems/benchmark/questions.toml`.
+The benchmark has 47 answerable questions in four groups (21 hierarchy, 7 control, 6 metric
+definition, 13 out of scope) and 8 unanswerable ones, in `src/agentic_ems/benchmark/questions.toml`.
 This page says how the questions and their answers were made, what was checked, and what was not.
 
 ## How the set was built

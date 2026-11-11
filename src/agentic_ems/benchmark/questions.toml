@@ -9,7 +9,8 @@
 # and an optional shape_note for the people writing the reference answer; the model never
 # sees shape_note or mistake.
 #
-# Ids are contiguous within each group. Each question carries a comment with its draft id.
+# Ids are contiguous within each group except O12, rejected after review and not reused.
+# Each question carries a comment with its draft id.
 # The draft's H21 is rejected (at the end); its H22 is H21; its C4, C5, C6, C9, C11, C12
 # are M1 to M6; its C7, C8, C10, C13 are C4 to C7.
 
@@ -453,16 +454,6 @@ source = "public standard"
 mistake = "A count of intervals above a threshold, on the site meter's interval kW."
 shape_note = "One value in hours: the number of 15-minute intervals in May 2026 with site kWh times 4 above 1500, divided by 4."
 
-# O12 = draft O12. Asked for one product so the answer has a single value.
-[[question]]
-id = "O12"
-group = "out_of_scope"
-ask = "Energy per hood in March 2026, counting only the paint lines' energy while hood orders were running?"
-keys = []
-source = "public standard"
-mistake = "Product is not a dimension; kWh must be matched to the intervals of that product's orders."
-shape_note = "One value: the Painting lines' kWh in intervals covered by Hood orders, divided by Hood units spread over their intervals, March 2026."
-
 # O13 = draft O13. Asked for the average only so the answer has a single value.
 [[question]]
 id = "O13"
@@ -568,3 +559,14 @@ ask = "If I add the solar array's production on top of the plant's consumption f
 keys = []
 source = "public standard"
 mistake = "A sum of unlike quantities, generation added to consumption; it is not consumption net of solar."
+
+# O12 = draft O12, rejected by the controller after the second reader's review of the
+# reference queries on 2026-11-11. Its id is not reused.
+[[rejected]]
+id = "O12"
+group = "out_of_scope"
+reason = "A second defensible reading (both Painting lines' kWh whenever a Hood order runs on either line) differs from the reference by about a third, and the question is constructed rather than one plant staff would ask."
+ask = "Energy per hood in March 2026, counting only the paint lines' energy while hood orders were running?"
+keys = []
+source = "public standard"
+mistake = "Product is not a dimension; kWh must be matched to the intervals of that product's orders."

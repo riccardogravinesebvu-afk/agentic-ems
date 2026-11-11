@@ -187,13 +187,6 @@ def o11(d: Data) -> Result:
     return single(sum(r.kwh * 4 > 1500 for r in d.readings(["site"], *month(2026, 5))) / 4)
 
 
-def o12(d: Data) -> Result:
-    lines = d.under(d.meter("Painting"), "line")
-    spread = d.units(lines, "Hood")
-    hood = [r for r in d.readings(lines, *month(2026, 3)) if (r.meter_id, r.ts_utc) in spread]
-    return single(ratio(kwh(hood), sum(spread[(r.meter_id, r.ts_utc)] for r in hood)))
-
-
 def o13(d: Data) -> Result:
     daily: dict[date, float] = defaultdict(float)
     for r in d.readings([d.meter("Painting line 2")], *month(2026, 4)):
@@ -293,7 +286,6 @@ ANSWERS: dict[str, Callable[[Data], Result]] = {
     "O9": o9,
     "O10": o10,
     "O11": o11,
-    "O12": o12,
     "O13": o13,
     "O14": o14,
 }
