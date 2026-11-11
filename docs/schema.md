@@ -254,13 +254,16 @@ an error or infinity, and report it as null rather than zero.
 line or machine consumption, peak, cost or energy per unit never include the `solar` or
 `battery` meters. Cost prices the plant's load at the tariff and ignores solar and battery.
 The four metrics defined above (consumption, peak demand, cost and energy per unit) are
-metrics of consumption meters and are not defined for `solar` or `battery`, alone or added to
-consumption meters; such a question has no answer. Questions about generation or storage
-themselves are answered from those two meters' own readings, with the sign convention
-described above: solar production in kWh is the sum of the solar meter's `kwh`, peak solar
-output in kW is its largest interval `kwh` times 4, battery charge and discharge come from
-the negative and positive battery readings, and their share of the plant's load compares
-those sums with the site meter's.
+metrics of consumption meters and are not defined for `solar` or `battery` alone, nor over a
+scope that mixes those meters with consumption meters by adding them; such a question has no
+answer. Questions about generation or storage themselves are answered from those two meters'
+own readings, with the sign convention described above: solar production in kWh is the sum of
+the solar meter's `kwh`, peak solar output in kW is its largest interval `kwh` times 4, battery
+charge and discharge come from the negative and positive battery readings, and their share of
+the plant's load compares those sums with the site meter's. Peak battery charge or discharge
+power in kW is the most negative or the largest positive battery reading times 4. The plant's
+load net of solar and battery, per interval, is the site reading minus the solar reading minus
+the battery reading; this is arithmetic on readings and is answerable.
 
 **R8.** `reading.ts_utc` is the UTC start of each 15-minute interval, with no time zone
 attached. Do not filter or group days, months or tariff bands on `ts_utc`, and do not convert
