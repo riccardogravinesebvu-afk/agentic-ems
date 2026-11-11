@@ -258,7 +258,8 @@ value column. `/eval-plan` fixes the final count per group.
 system is asked every day. A first list is drafted from public practice (energy performance
 indicators as in ISO 50001 and ISO 50006), then corrected by the owner from memory. No
 production system is opened to write them. Each question records its source (`public
-standard` or `author, from practice`), its group and the mistake it tests. Questions dropped
+standard`, `author, from practice` or `error class Pn`, from a list of generic error classes
+prepared in a separate session and reviewed by the owner), its group and the mistake it tests. Questions dropped
 during review stay in the file under `rejected`, each with its reason.
 
 **Ground truth, computed twice.** Each answerable question has a hand-written reference
@@ -474,8 +475,9 @@ for solar, battery or orders alone.
 1. **Is an LLM judge needed at all?** Decided by the owner on 2026-11-11: no. Scoring reads
    tool calls and result rows only. The brief's mention of a judge model no longer applies.
 2. **Compiled SQL in the demo.** The sketch shows the compiled SQL under the structured
-   request. The brief says four elements and no extra panels. Proposal: show it inside the
-   structured-request panel, not as a fifth panel. Owner decides.
+   request. The brief says four elements and no extra panels. Decided on 2026-11-11 under the
+   owner's standing instruction to take the smallest option: it is shown inside the
+   structured-request panel, not as a fifth panel.
 3. **Commit identity.** Decided on 2026-11-11: commits are authored as riccardogravinese with
    the GitHub no-reply address for that account, set in this repository only, so no personal
    address is published.
@@ -483,7 +485,9 @@ for solar, battery or orders alone.
    development, separate from the 20 EUR. The owner decides before the first paid call. The
    hosted demo makes no paid calls.
 5. **Data span.** One year of 15-minute readings for about 40 meters is roughly 1.4 million
-   rows. A shorter span makes the repository's generated database smaller. Decide with the stack choice.
+   rows. Decided with the plan on 2026-11-11: one year, 2025-11-01 to 2026-11-01, so both
+   clock-change days and a full quarter are in the data. The database is generated, not
+   committed.
 6. **Security review.** `/cso` needs a C compiler on this machine and reported itself
    unavailable on 2026-11-11. The owner installs the compiler before that step. If that is
    not possible, the built-in `/security-review` runs instead, on a branch whose diff against
@@ -529,10 +533,12 @@ In the order the brief sets:
    dbt Labs post and confirms its URL, what it tests and both figures; none of them appears
    in the README before that.
 4. `superpowers:writing-plans`, then `superpowers:subagent-driven-development`. Build order:
-   data generator, `run_sql` and a draft `docs/schema.md`, then a pilot of the baseline arm
-   on about 8 hierarchy questions, planned with `/eval-plan` and costing cents, to learn
-   early whether the baseline double counts at all; then semantic layer and compiler with
-   offline tests, agent, MCP server, benchmark harness, demo, README and video script. Paid calls in this step stay under the
+   data generator, semantic layer and compiler with offline tests, `run_sql` and
+   `docs/schema.md`, agent loop, questions with reference answers, scorer and harness; then
+   a pilot of the baseline arm on about 8 hierarchy questions, planned with `/eval-plan` and
+   costing cents, to learn whether the baseline double counts at all before the full run;
+   then MCP server, demo, README and video script. The pilot needs questions, references,
+   a scorer and a harness to mean anything, so it cannot come earlier. Paid calls in this step stay under the
    development cap of Open Question 4.
 5. `/eval-plan` before any paid benchmark run.
 6. `/code-review high`, then `/cso` or its fallback from Open Question 6, then
