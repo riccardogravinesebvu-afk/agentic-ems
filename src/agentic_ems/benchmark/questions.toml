@@ -1,7 +1,7 @@
 # The benchmark questions. Each one is written to read like a question plant staff type;
 # they are not logs of real users. Question types come from a draft list of question types
-# the owner read on 2026-11-11 (see docs/review-log.md); the draft's error-class table is
-# docs/error-classes.md, which also maps draft ids to the ids below.
+# the owner read on 2026-11-11 (see docs/review-log.md); the error-class table, with the ids
+# below, is in docs/golden.md.
 # The wording was then revised after a second reader's review the same day.
 #
 # Fields: id, group, ask (the only text the model sees, before the fixed shape line),

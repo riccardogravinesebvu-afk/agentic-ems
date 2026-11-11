@@ -58,13 +58,27 @@ def test_every_date_lies_inside_the_dataset():
         assert not re.search(r"\b\d{4}\b", NUMERIC.sub("", MONTH.sub("", ask))), q["id"]
 
 
+QUANTITY = re.compile(r"(?<![\d:,.])(\d[\d,.]*\d|\d)\s*(?:kWh|kW|h|EUR|%|hours|units|pieces)(?!\w)")
+
+
+def asked_numbers(text: str) -> set[str]:
+    return {n.replace(",", "") for n in re.findall(r"\d[\d,.]*", text)}
+
+
 def test_notes_hold_no_computed_number():
     # The two reference computations are written separately, so no note may give part of an answer.
     for q in QUESTIONS:
-        allowed = {n.replace(",", "") for n in re.findall(r"\d[\d,.]*", q["ask"])}
+        allowed = asked_numbers(q["ask"])
         for text in (q.get("shape_note", ""), q["mistake"]):
-            for number in re.findall(r"(\d[\d,.]*\d|\d)\s*(?:kWh|kW|h|EUR|%)(?!\w)", text):
+            for number in QUANTITY.findall(text):
                 assert number.replace(",", "") in allowed, (q["id"], number)
+
+
+def test_comments_hold_no_computed_number():
+    raw = (ROOT / "src" / "agentic_ems" / "benchmark" / "questions.toml").read_text()
+    allowed = asked_numbers(" ".join(q["ask"] for q in QUESTIONS))
+    for number in QUANTITY.findall(raw):
+        assert number.replace(",", "") in allowed, number
 
 
 def test_unanswerable_group_size():
