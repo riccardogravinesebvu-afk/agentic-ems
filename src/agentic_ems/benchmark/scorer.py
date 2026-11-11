@@ -107,7 +107,7 @@ def score(question: Question, truth: Truth, record: RunRecord) -> Score:
         )
         outcome = "other_wrong" if category is None else "known_wrong"
     correct = outcome == "correct" or (outcome == "refusal" and unanswerable)
-    earlier = outcome != "correct" and not unanswerable and any(
-        is_reference(columns, rows) for columns, rows in record.successful_results[:-1]
-    )
+    # Results the run did not end on: all of them, unless the run ended on the last one's rows.
+    abandoned = record.successful_results[:-1] if record.final == "rows" else record.successful_results
+    earlier = outcome != "correct" and not unanswerable and any(is_reference(columns, rows) for columns, rows in abandoned)
     return Score(outcome, category, correct, earlier)

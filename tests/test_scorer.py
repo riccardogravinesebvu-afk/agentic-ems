@@ -221,8 +221,12 @@ def test_earlier_correct_flag():
     assert (s.outcome, s.correct, s.earlier_correct) == ("correct", True, False)
     s = score(question(), TRUTH, record(columns=wrong[0], rows=wrong[1], successful=[wrong]))
     assert s.earlier_correct is False
+    s = score(question(), TRUTH, record("refusal", successful=[REF]))
+    assert (s.outcome, s.earlier_correct) == ("refusal", True)  # correct rows, then a refusal
     s = score(question(), TRUTH, record("none", successful=[REF], cause="max_tokens"))
-    assert (s.outcome, s.earlier_correct) == ("no_answer", False)  # only results before the last one count
+    assert (s.outcome, s.earlier_correct) == ("no_answer", True)  # correct rows, then cut off
+    s = score(question(), TRUTH, record("none", successful=[wrong], cause="max_tokens"))
+    assert s.earlier_correct is False
     s = score(question("unanswerable"), Truth(None, []), record("refusal", successful=[REF, wrong]))
     assert s.earlier_correct is False
 
