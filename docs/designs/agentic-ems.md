@@ -24,9 +24,9 @@ They give the repository two minutes. The project must look like a finished cust
 ## What Makes This Cool
 
 The public comparison found for this design is a dbt Labs post on semantic layer versus
-text-to-SQL (https://docs.getdbt.com/blog/semantic-layer-vs-text-to-sql-2026). Only a web
-search summary of it was read on 2026-11-11, not the post. On that summary, the published
-discussion of double counting is about joins. Unverified until the post is read (Next Steps).
+text-to-SQL (https://docs.getdbt.com/blog/semantic-layer-vs-text-to-sql-2026, published
+2026-04-07, read on 2026-11-11). The post does not discuss double counting; its failure
+examples are incorrect joins and bad aggregations across tables.
 This failure is different. It happens inside one table and no
 join is wrong. Table definitions cannot state the rule "these levels may not be summed
 together"; the benchmark measures whether stating it in prose is enough. The repository shows one wrong number, the SQL
@@ -75,9 +75,10 @@ Agreed by the owner on 2026-11-11.
    is evidence behind a link.
 2. **The baseline is strong.** The text-to-SQL arm gets the same model and a documented schema
    that states every aggregation rule the semantic layer encodes. The dbt Labs post cited
-   above reports that schema modelling alone moved text-to-SQL from 64.5% to 90.0% (figures
-   as summarised by a web search on 2026-11-11; verify against the post before quoting them
-   in the README). A weak baseline
+   above reports that adding three denormalised models to the schema moved text-to-SQL from
+   64.5% to 90.0% with Claude Sonnet 4.6 (84.1% with GPT-5.3 Codex), on 11 questions run 20
+   times each. That is a better-prepared schema, not documented aggregation rules, so it
+   supports "preparation helps text-to-SQL" and nothing more specific. A weak baseline
    would make the result worthless to an informed reader.
 3. **The question set is honest.** Three groups: hierarchy questions where double counting is
    expected, control questions where text-to-SQL should do well, and out-of-scope questions
@@ -301,9 +302,13 @@ minimum.
 
 `run_sql` executes SQL written by a model on the machine that runs the benchmark. A
 read-only database is not enough: some engines still let a query read or write other files.
-The connection used by `run_sql` has file and network access switched off, and offline tests
-check that a query trying to read a local file, write a file or attach another database
-fails. The database engine in `docs/stack.md` must support this.
+The database instance behind `run_sql` has file and network access switched off, and offline
+tests check that a query trying to read a local file, write a file or attach another database
+fails, and that the already-open database stays readable. In DuckDB these settings apply to
+the whole instance and cannot be undone until it closes, so the benchmark opens the file
+read-only in its own process, after the generator has closed it. The engine's documentation
+says these settings are not a substitute for a sandbox: this protects a local benchmark run
+and nothing in this repository calls `run_sql` sandboxed.
 
 `docs/schema.md` is a committed, reviewed file. It states in prose every rule the semantic
 layer encodes: parent meters include their children; a node's total is its own meter and not
