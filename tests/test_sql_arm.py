@@ -1,5 +1,6 @@
 import duckdb
 import pytest
+import sqlglot
 
 from agentic_ems.benchmark.sql_arm import run_sql
 from agentic_ems.semantic import LimitError, RequestError, execute_limited
@@ -68,12 +69,46 @@ def test_statement_is_refused(con, paths, sql):
         "WITH d AS (DELETE FROM meter RETURNING *) SELECT * FROM d",
         "WITH d AS (DESCRIBE meter) SELECT * FROM d",
         "SELECT * FROM (DESCRIBE meter)",
+        "SELECT * FROM (SHOW TABLES)",
+        "SELECT * FROM meter, LATERAL (SHOW TABLES)",
         "",
     ],
 )
 def test_parser_refuses_anything_but_one_select(con, paths, sql):
     with pytest.raises(RequestError, match="only one SELECT query|could not be parsed"):
         run_sql(con, sql.format(**paths))
+
+
+# These would run, and show settings or file paths of the host in a published transcript.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM duckdb_settings()",
+        "SELECT * FROM pragma_version()",
+        "SELECT current_setting('secret_directory')",
+        "SELECT * FROM pg_catalog.pg_settings",
+        "SELECT path FROM duckdb_databases",
+        "SELECT * FROM query('SELECT * FROM duckdb_settings()')",
+    ],
+)
+def test_host_details_are_refused(con, sql):
+    with pytest.raises(RequestError, match="is not available"):
+        run_sql(con, sql)
+
+
+def test_information_schema_is_available(con):
+    result = run_sql(con, "SELECT count(*) FROM information_schema.columns WHERE table_name = 'reading'")
+    assert result.rows == [(9,)]
+
+
+def test_original_text_is_executed(con):
+    sql = "FROM meter SELECT count(*)"
+    assert sqlglot.transpile(sql, read="duckdb", write="duckdb") != [sql]
+    assert run_sql(con, sql).sql == sql
+
+
+def test_time_zone_values_can_be_returned(con):
+    assert len(run_sql(con, "SELECT now() AS t").rows) == 1
 
 
 def test_engine_error_keeps_its_message(con):

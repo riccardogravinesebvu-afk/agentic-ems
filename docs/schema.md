@@ -20,17 +20,24 @@ The `run_sql` tool runs one query and returns its rows.
 - A result may have at most 5,000 rows, and a query may run for at most 10 seconds. Past
   either limit the call fails with a message saying so. Aggregate in SQL rather than fetching
   raw readings.
-- Do not return values of type `TIMESTAMP WITH TIME ZONE` (for example from `now()` or
-  `AT TIME ZONE`): the client cannot convert them and the query fails. You never need them,
-  because the local-time columns described below are already in the table.
+- Functions and catalog views that show the engine's settings, files or internals are not
+  available: any function or view whose name starts with `duckdb_`, `pragma_` or `pg_`, and
+  `current_setting`, `which_secret`, `query` and `query_table`. The `information_schema`
+  views work.
 - The SQL dialect is DuckDB's. Engine errors are returned with the engine's message.
+
+## Questions with no answer
+
+Some questions cannot be answered from this data, and the sections below say which. When a
+question has no answer, do not return rows for it. An empty result, a NULL or a zero is not
+an answer to such a question, and neither is a partial result.
 
 ## Dataset range
 
 The data starts on 2025-11-01 and ends before 2026-11-01, in plant local dates: the last day
 with data is 2026-10-31. `dataset_info.first_date` and `dataset_info.end_date` hold these two
-dates; `end_date` is excluded. A question about a date outside this range cannot be answered
-from the data.
+dates; `end_date` is excluded. A question whose period starts before 2025-11-01 or ends after
+2026-11-01, even partly, has no answer: a total over the part that has data is not the answer.
 
 ## Tables and columns
 
@@ -173,6 +180,10 @@ The site meter `site` is the plant's total load. Every parent meter reads betwee
 percent more than the sum of its children, in every 15-minute interval, because it also
 measures unmetered load and losses. The margin differs from parent to parent.
 
+These 43 meters are all the meters there are. A meter, department, line or machine that is
+not in the `meter` table does not exist, and a question about it has no answer: an empty or
+NULL sum is not zero consumption.
+
 The solar array (`solar`, kind `generation`) and the battery (`battery`, kind `storage`) have
 no level and no parent and are not part of the consumption tree. Their readings are in the
 `reading` table like any other meter's. Solar kWh is zero or positive. Battery kWh is signed:
@@ -202,17 +213,21 @@ the plant, filter on `meter_id = 'site'`; for a department, filter on the depart
 `meter_id` (for example `dept_b`) and do not add its lines; for a line, filter on the line's
 own `meter_id` and do not add its machines. Summing the departments, lines or machines
 undercounts the parent by its 3 to 8 percent margin. When a question asks for a breakdown,
-return one row per child meter and do not add the rows together. When a question names
-several meters to be added (for example two lines), add them only if none of them is an
-ancestor of another and none appears twice. Adding a department and one of its own lines
-counts that line twice, because the department's meter already includes it.
+return one row per meter of the requested level under the node (for example one row per
+machine of a department, from each machine's own meter) and do not add the rows together. A
+breakdown must be by a level below the node's own level; any other breakdown has no answer.
+When a question names several meters to be added (for example two lines), add their own
+meters. When one meter in such a list is an ancestor of another, or a meter is repeated, the
+sum is not defined and the question has no answer: adding a department and one of its own
+lines would count that line twice, because the department's meter already includes it.
 
 **R3.** Peak demand is coincident: for each `ts_utc`, sum the `kwh` of the meters in scope and
 multiply by 4 to get kW, then take the maximum over the period. For a single meter this is
 `max(kwh) * 4`. For several meters, first `GROUP BY ts_utc` with `sum(kwh) * 4`, then take
 `max` of that in an outer query; never add each meter's own peak. For a peak per bucket (for
 example per day), group the inner query by the bucket column and `ts_utc`, and take the
-maximum per bucket in the outer query.
+maximum per bucket in the outer query. Peak demand is not split by tariff band; a question
+asking for a peak per band has no answer.
 
 **R4.** Cost prices each interval's kWh at the tariff of that interval's band: join
 `tariff` on `tariff.tariff_band = reading.tariff_band` and take
@@ -228,8 +243,9 @@ intervals when no order runs. In SQL: `FROM reading r LEFT JOIN production_order
 o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc`, filter
 `r.meter_id` on the line, and take `sum(r.kwh) / sum(o.units / (epoch(o.end_utc -
 o.start_utc) / 900))`. For a department or the plant, compute it per line (group by
-`r.meter_id`) over the lines of that department or of the plant; it is not defined for a
-department, the site or a machine as a whole.
+`r.meter_id`) over the lines of that department or of the plant. It is not defined for a
+department, the site or a machine as a whole, for several lines added together, or split by
+tariff band; such a question has no answer.
 
 **R6.** Energy per unit is null where no units were produced, for example on a day the line
 did not run. Write the denominator as `NULLIF(sum(...), 0)` so the value is NULL rather than
@@ -238,8 +254,8 @@ an error or infinity, and report it as null rather than zero.
 **R7.** The four metrics above read consumption meters only. Questions about plant, department,
 line or machine consumption, peak, cost or energy per unit never include the `solar` or
 `battery` meters. Cost prices the plant's load at the tariff and ignores solar and battery.
-Questions about solar output or battery charging and discharging are answered from those two
-meters' own readings, with the sign convention described above.
+Consumption, peak, cost and energy per unit are not defined for `solar` or `battery`, alone
+or added to consumption meters; such a question has no answer.
 
 **R8.** `reading.ts_utc` is the UTC start of each 15-minute interval, with no time zone
 attached. Do not filter or group days, months or tariff bands on `ts_utc`, and do not convert
