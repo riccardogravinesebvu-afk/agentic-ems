@@ -258,6 +258,7 @@ def _open_db(path: Path) -> duckdb.DuckDBPyConnection:
         "autoinstall_known_extensions = false",
         "autoload_known_extensions = false",
         f"max_execution_time = {TIME_LIMIT_MS}",
+        "TimeZone = 'Europe/Rome'",  # time zone values in results do not depend on the host
         "lock_configuration = true",
     ):
         con.execute(f"SET GLOBAL {setting}")

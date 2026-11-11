@@ -214,20 +214,20 @@ the plant, filter on `meter_id = 'site'`; for a department, filter on the depart
 own `meter_id` and do not add its machines. Summing the departments, lines or machines
 undercounts the parent by its 3 to 8 percent margin. When a question asks for a breakdown,
 return one row per meter of the requested level under the node (for example one row per
-machine of a department, from each machine's own meter) and do not add the rows together. A
-breakdown must be by a level below the node's own level; any other breakdown has no answer.
-When a question names several meters to be added (for example two lines), add their own
-meters. When one meter in such a list is an ancestor of another, or a meter is repeated, the
-sum is not defined and the question has no answer: adding a department and one of its own
-lines would count that line twice, because the department's meter already includes it.
+machine of a department, from each machine's own meter) and do not add the rows together.
+Only the levels below a node's own level have meters under it. When a question names several meters to be added (for example two lines), add their own
+meters. Never add a meter to one of its ancestors, and never add a meter to itself: the
+ancestor's reading already contains the descendant's energy, so adding them counts that
+energy twice. The energy of a meter and one of its descendants taken together is the
+ancestor's own reading; for example a department together with one of its own lines is the
+department's meter alone.
 
 **R3.** Peak demand is coincident: for each `ts_utc`, sum the `kwh` of the meters in scope and
 multiply by 4 to get kW, then take the maximum over the period. For a single meter this is
 `max(kwh) * 4`. For several meters, first `GROUP BY ts_utc` with `sum(kwh) * 4`, then take
 `max` of that in an outer query; never add each meter's own peak. For a peak per bucket (for
 example per day), group the inner query by the bucket column and `ts_utc`, and take the
-maximum per bucket in the outer query. Peak demand is not split by tariff band; a question
-asking for a peak per band has no answer.
+maximum per bucket in the outer query.
 
 **R4.** Cost prices each interval's kWh at the tariff of that interval's band: join
 `tariff` on `tariff.tariff_band = reading.tariff_band` and take
@@ -244,8 +244,7 @@ o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc`, fi
 `r.meter_id` on the line, and take `sum(r.kwh) / sum(o.units / (epoch(o.end_utc -
 o.start_utc) / 900))`. For a department or the plant, compute it per line (group by
 `r.meter_id`) over the lines of that department or of the plant. It is not defined for a
-department, the site or a machine as a whole, for several lines added together, or split by
-tariff band; such a question has no answer.
+department, the site or a machine as a whole.
 
 **R6.** Energy per unit is null where no units were produced, for example on a day the line
 did not run. Write the denominator as `NULLIF(sum(...), 0)` so the value is NULL rather than
@@ -255,7 +254,10 @@ an error or infinity, and report it as null rather than zero.
 line or machine consumption, peak, cost or energy per unit never include the `solar` or
 `battery` meters. Cost prices the plant's load at the tariff and ignores solar and battery.
 Consumption, peak, cost and energy per unit are not defined for `solar` or `battery`, alone
-or added to consumption meters; such a question has no answer.
+or added to consumption meters; such a question has no answer. Questions about generation or
+storage themselves, such as solar production, battery charge and discharge, or their share
+of the plant's load, are answered from those two meters' own readings, with the sign
+convention described above.
 
 **R8.** `reading.ts_utc` is the UTC start of each 15-minute interval, with no time zone
 attached. Do not filter or group days, months or tariff bands on `ts_utc`, and do not convert

@@ -109,6 +109,8 @@ def test_original_text_is_executed(con):
 
 def test_time_zone_values_can_be_returned(con):
     assert len(run_sql(con, "SELECT now() AS t").rows) == 1
+    [(value,)] = run_sql(con, "SELECT TIMESTAMPTZ '2026-07-01 00:00:00+00' AS t").rows
+    assert value.isoformat() == "2026-07-01T02:00:00+02:00"
 
 
 def test_engine_error_keeps_its_message(con):

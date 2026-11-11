@@ -77,12 +77,12 @@ def test_lockdown_covers_cursor_and_second_connection(db_path, con):
     settings = (
         "SELECT current_setting('enable_external_access'), current_setting('autoinstall_known_extensions'), "
         "current_setting('autoload_known_extensions'), current_setting('max_execution_time'), "
-        "current_setting('lock_configuration')"
+        "current_setting('lock_configuration'), current_setting('TimeZone')"
     )
     second = duckdb.connect(str(db_path), read_only=True)
     try:
         for connection in (con.cursor(), second):
-            assert connection.execute(settings).fetchall() == [(False, False, False, 10000, True)]
+            assert connection.execute(settings).fetchall() == [(False, False, False, 10000, True, "Europe/Rome")]
     finally:
         second.close()
     with pytest.raises(duckdb.Error):
