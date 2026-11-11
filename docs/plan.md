@@ -319,7 +319,7 @@ def test_messages_are_json_serialisable
 
 Every period lies inside 2025-11-01 to 2026-11-01. H19 and H20 have a defined correct answer decided by the owner. Any question whose correct outcome is a refusal (the draft's H21 and U-rows) is in the `unanswerable` group; a question that stays in `hierarchy` has rows as its answer. No question asks for an order. If `/eval-plan` later cuts a group, the cut questions move to `rejected` with that reason. `docs/review-log.md` records the date and which questions the owner read, changed and rejected.
 
-- [ ] **Step 1:** `tests/test_questions.py`: ids unique; every group present; every `keys` value in the closed set; no `ask` contains a meter id, the word `value` or a column name; no two `ask` strings share their first four words; every date in a text is inside the dataset, except in the `unanswerable` group; unanswerable has 3 to 8 questions.
+- [ ] **Step 1:** `tests/test_questions.py`: ids unique; every group present; every `keys` value in the closed set; no `ask` contains a meter id, the word `value` or a column name; no two `ask` strings share their first four words; every date in a text is inside the dataset, except in the `unanswerable` group; unanswerable has 3 to 9 questions.
 - [ ] **Step 2:** Write the files. **Step 3:** Test passes.
 - [ ] **Step 4:** Commit: "Add the reviewed question set" (why: the questions and their provenance are fixed before any model is run on them).
 
