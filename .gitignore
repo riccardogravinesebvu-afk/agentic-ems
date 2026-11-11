@@ -2,3 +2,7 @@ BRIEF.md
 CLEANROOM-PLAN.md
 .gstack/
 docs/problem-classes.md
+data/
+.venv/
+frontend/node_modules/
+frontend/dist/
