@@ -1,0 +1,233 @@
+import json
+import re
+
+import pytest
+from fakes import ScriptedChatModel, reply
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+
+from agentic_ems.agent import (
+    MODEL,
+    ModelMismatch,
+    make_model,
+    render_rows,
+    run_agent,
+    semantic_arm,
+    tracing_callbacks,
+)
+from agentic_ems.benchmark.sql_arm import sql_arm
+from agentic_ems.semantic import catalogue_text, load_catalog, meter_tree_text, query
+
+PERIOD = {"start": "2026-10-19", "end": "2026-11-01"}
+GOOD = {"metric": "consumption_kwh", "breakdown": "department"} | PERIOD
+BAD = {"metric": "consumption_kwh", "meters": ["dept_a", "line_a1"]} | PERIOD  # an ancestor with its child
+Q = "How much energy did each department use?"
+
+
+@pytest.fixture(scope="module")
+def catalog(con):
+    return load_catalog(con)
+
+
+@pytest.fixture(scope="module")
+def sem(con, catalog):
+    return semantic_arm(con, catalog)
+
+
+@pytest.fixture(scope="module")
+def sql(con, catalog):
+    return sql_arm(con, catalog, "Schema text.")
+
+
+def run(arm, *script, **kwargs):
+    model = ScriptedChatModel(script=list(script))
+    return run_agent(model, arm, Q, **kwargs), model
+
+
+def tool_messages(model):
+    """The tool messages the model saw on its last call."""
+    return [m for m in model.received[-1] if isinstance(m, ToolMessage)]
+
+
+def test_one_query_then_text_ends_with_rows(sem, con, catalog):
+    record, model = run(sem, reply(("query_metric", GOOD)), reply(text="Done."))
+    expected = query(GOOD, con, catalog)
+    assert record.final == "rows" and record.cause is None
+    assert record.columns == expected.columns and record.rows == expected.rows
+    assert record.calls[0]["sql"] == expected.sql
+    assert len(model.received) == 2
+
+
+def test_compile_error_is_returned_and_model_can_retry(sem):
+    record, model = run(sem, reply(("query_metric", BAD)), reply(("query_metric", GOOD)), reply(text="Done."))
+    first = model.received[1][-1]
+    assert isinstance(first, ToolMessage) and first.status == "error" and "ancestor" in first.content
+    assert [c["ok"] for c in record.calls] == [False, True]
+    assert record.final == "rows" and len(record.rows) == 4
+
+
+def test_malformed_tool_input_is_an_error_result(sem):
+    record, model = run(sem, reply(("query_metric", PERIOD)), reply(text="I could not."))
+    assert record.calls[0]["ok"] is False and "metric" in record.calls[0]["content"]
+    assert len(model.received) == 2  # the loop continued after the error
+    assert record.final == "none" and record.cause == "no_tool_call"
+
+
+def test_refuse_ends_the_run(sem):
+    record, model = run(sem, reply(("refuse", {"reason": "no such department"})), reply(text="unused"))
+    assert record.final == "refusal" and record.refusal_reason == "no such department"
+    assert record.rows is None and len(model.received) == 1
+
+
+def test_fifth_tool_call_is_not_executed(sem):
+    record, _ = run(sem, reply(*[("query_metric", BAD)] * 4, ("query_metric", GOOD)))
+    assert len(record.calls) == 4 and record.final == "none" and record.cause == "max_tool_calls"
+
+    record, _ = run(sem, reply(("query_metric", GOOD), *[("query_metric", BAD)] * 4))
+    assert len(record.calls) == 4 and record.final == "rows" and len(record.rows) == 4
+
+
+def test_calls_in_one_message_run_in_order_and_count(sem):
+    meters = [{"metric": "consumption_kwh", "node": m} | PERIOD for m in ("dept_a", "dept_b", "dept_c", "dept_d")]
+    record, model = run(sem, reply(*[("query_metric", m) for m in meters[:3]]),
+                        reply(("query_metric", meters[3]), ("query_metric", GOOD)))
+    assert [c["args"] for c in record.calls] == meters
+    assert len(model.received) == 2
+    assert record.final == "rows" and record.rows == record.successful_results[-1][1]
+    assert len(record.rows) == 1  # dept_d's total, not the breakdown that came fifth
+
+
+def test_refuse_after_a_query_in_the_same_message(sem):
+    record, _ = run(sem, reply(("query_metric", GOOD), ("refuse", {"reason": "not sure"})))
+    assert record.final == "refusal" and record.refusal_reason == "not sure"
+    assert len(record.successful_results) == 1
+
+
+def test_max_tokens_after_rows_is_still_no_answer(sem):
+    record, _ = run(sem, reply(("query_metric", GOOD)), reply(text="The answer is", stop_reason="max_tokens"))
+    assert record.final == "none" and record.cause == "max_tokens" and record.rows is None
+    assert len(record.successful_results) == 1
+
+
+def test_last_successful_call_is_the_answer(sem, con, catalog):
+    second = {"metric": "cost_eur", "breakdown": "department"} | PERIOD
+    record, _ = run(sem, reply(("query_metric", GOOD)), reply(("query_metric", second)), reply(text="Done."))
+    assert record.rows == query(second, con, catalog).rows
+    assert [rows for _, rows in record.successful_results] == [query(GOOD, con, catalog).rows, record.rows]
+
+
+def test_provider_refusal_is_no_answer(sem):
+    record, model = run(sem, reply(("query_metric", GOOD), stop_reason="refusal"), reply(text="unused"))
+    assert record.final == "none" and record.cause == "provider_refusal"
+    assert record.calls == [] and len(model.received) == 1
+
+
+def test_max_tokens_is_no_answer(sem):
+    record, _ = run(sem, reply(("query_metric", GOOD), stop_reason="max_tokens"))
+    assert record.final == "none" and record.cause == "max_tokens" and record.calls == []
+
+
+def test_text_without_tool_call_is_no_answer(sem):
+    record, _ = run(sem, reply(text="Department A used the most."))
+    assert record.final == "none" and record.cause == "no_tool_call"
+
+
+def test_wrong_served_model_raises(sem):
+    with pytest.raises(ModelMismatch):
+        run(sem, reply(text="Hi.", model="claude-opus-5"))
+    with pytest.raises(ModelMismatch):  # a dated id of a different model
+        run(sem, reply(text="Hi.", model="claude-opus-5-20260101"), requested_model="claude-opus-5-5")
+    record, _ = run(sem, reply(text="Hi.", model=f"{MODEL}-20261101"))
+    assert record.served_model == f"{MODEL}-20261101"
+
+
+def test_usage_is_summed_from_raw_usage_dict(sem):
+    usage = {"input_tokens": 7, "cache_creation_input_tokens": 1000, "cache_read_input_tokens": 0, "output_tokens": 40}
+    cached = {"input_tokens": 9, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 1000, "output_tokens": 3}
+    record, _ = run(sem, reply(("query_metric", GOOD), usage=usage), reply(text="Done.", usage=cached))
+    assert record.usage == {
+        "input_tokens": 16, "cache_creation_input_tokens": 1000, "cache_read_input_tokens": 1000, "output_tokens": 43,
+    }
+
+
+def test_system_has_one_cache_breakpoint_and_no_tool_choice(sem, sql, monkeypatch):
+    for arm in (sem, sql):
+        _, model = run(arm, reply(text="Hi."))
+        system = model.received[0][0]
+        assert system.type == "system" and system.content == arm.system
+        assert [i for i, b in enumerate(arm.system) if "cache_control" in b] == [len(arm.system) - 1]
+        assert isinstance(model.received[0][1], HumanMessage) and model.received[0][1].content == Q
+        assert "tool_choice" not in model.call_kwargs[0] and model.call_kwargs[0]["tools"] == arm.tools
+
+    # The real client keeps the breakpoint and sends no tool_choice.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    bound = make_model(effort="high", max_tokens=4000).bind_tools(sem.tools)
+    payload = bound.bound._get_request_payload([SystemMessage(sem.system), HumanMessage(Q)], **bound.kwargs)
+    assert payload["system"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert "tool_choice" not in payload and [t["name"] for t in payload["tools"]] == ["query_metric", "refuse"]
+
+
+def test_arms_differ_only_in_context_and_exec_tool(sem, sql, catalog):
+    *sem_fixed, sem_context = sem.system
+    *sql_fixed, sql_context = sql.system
+    assert json.dumps(sem_fixed).replace("query_metric", "run_sql") == json.dumps(sql_fixed)
+    assert sem.tools[1] == sql.tools[1] and sem.tools[1]["name"] == "refuse"
+    assert (sem.exec_tool, sql.exec_tool) == ("query_metric", "run_sql")
+    assert sem_context["text"] == catalogue_text(catalog) + "\n\n" + meter_tree_text(catalog)
+    assert sql_context["text"] == "Schema text.\n\n" + meter_tree_text(catalog)
+    assert {k: v for k, v in sem_context.items() if k != "text"} == {k: v for k, v in sql_context.items() if k != "text"}
+
+
+def test_both_arms_render_rows_identically(sem, sql, con, catalog):
+    result = query(GOOD, con, catalog)
+    scope, start, end = result.params
+    # The compiled query with its parameters written in, so the SQL arm returns the very same rows.
+    literal = result.sql.replace("IN ?", "IN (" + ", ".join(f"'{m}'" for m in scope) + ")", 1)
+    literal = literal.replace("?", f"DATE '{start}'", 1).replace("?", f"DATE '{end}'", 1)
+    from_sem, from_sql = sem.execute(GOOD), sql.execute({"sql": literal})
+    assert from_sem.rows == from_sql.rows and from_sem.content == from_sql.content
+
+    many = sql.execute({"sql": "SELECT range AS n FROM range(51)"})
+    lines = many.content.splitlines()
+    assert many.content == render_rows(["n"], [(i,) for i in range(51)])
+    assert lines[0] == "n" and lines[1:51] == [str(i) for i in range(50)]
+    assert len(lines) == 52 and "51" in lines[-1]
+    assert len(many.rows) == 51  # the record keeps every row; only the model's text is cut
+
+
+def test_semantic_arm_never_exposes_sql_tool(sem):
+    assert [t["name"] for t in sem.tools] == ["query_metric", "refuse"]
+    assert "sql" not in json.dumps(sem.tools).lower()
+    _, model = run(sem, reply(("query_metric", GOOD)), reply(text="Done."))
+    assert "SELECT" not in tool_messages(model)[0].content
+
+
+def test_make_model_settings(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    model = make_model(effort="high", max_tokens=4000)
+    assert model.model == MODEL and model.max_retries == 0 and model.temperature is None
+    assert model.thinking == {"type": "adaptive"} and model.max_tokens == 4000 and model.effort == "high"
+    payload = model._get_request_payload([HumanMessage("Hi")])
+    assert payload["output_config"] == {"effort": "high"} and payload["thinking"] == {"type": "adaptive"}
+    assert payload["max_tokens"] == 4000 and "temperature" not in payload
+
+
+def test_no_tracing_without_keys(monkeypatch):
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    assert tracing_callbacks() == []
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    assert tracing_callbacks() == []
+
+
+def test_messages_are_json_serialisable(sem):
+    record, _ = run(sem, reply(("query_metric", BAD)), reply(("query_metric", GOOD)), reply(text="Done."))
+    roles = [m["role"] for m in json.loads(json.dumps(record.messages))]
+    assert roles == ["system", "human", "ai", "tool", "ai", "tool", "ai"]
+    json.dumps(record.calls)
+
+
+def test_on_text_streams_the_reply_text(sem):
+    texts: list[str] = []
+    record, _ = run(sem, reply(("query_metric", GOOD), text="Looking."), reply(text="Done."), on_text=texts.append)
+    assert record.final == "rows" and len(record.rows) == 4  # the query ran in LangGraph's worker thread
+    assert re.sub(r"\s", "", "".join(texts)) == "Looking.Done."

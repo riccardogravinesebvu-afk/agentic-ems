@@ -10,7 +10,14 @@ import duckdb
 import sqlglot
 from sqlglot import exp
 
-from agentic_ems.semantic import QueryResult, RequestError, execute_limited
+from agentic_ems.agent import Arm, make_arm
+from agentic_ems.semantic import (
+    Catalog,
+    QueryResult,
+    RequestError,
+    execute_limited,
+    meter_tree_text,
+)
 
 # Backstop: statement nodes that sqlglot can place inside a query.
 NOT_READ = (
@@ -57,3 +64,18 @@ def run_sql(con, sql: str) -> QueryResult:
     except duckdb.Error as exc:
         raise RequestError(str(exc)) from None
     return QueryResult(columns, rows, sql, [])
+
+
+def _run_tool(con, args: dict) -> QueryResult:
+    if not isinstance(args.get("sql"), str):
+        raise RequestError("sql: a string with one SELECT query is required")
+    return run_sql(con, args["sql"])
+
+
+def sql_arm(con, catalog: Catalog, schema_md: str) -> Arm:
+    tool = {
+        "name": "run_sql",
+        "description": "Run one read-only SQL query against the plant database and return its rows.",
+        "input_schema": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]},
+    }
+    return make_arm("sql", tool, schema_md + "\n\n" + meter_tree_text(catalog), con, _run_tool)
