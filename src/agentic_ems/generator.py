@@ -1,4 +1,7 @@
-"""Seeded generator for the plant database: meters, 15-minute readings, tariff and orders."""
+"""Seeded generator for the plant database: meters, 15-minute readings, tariff and orders.
+
+Battery kWh is signed: positive while discharging, negative while charging.
+"""
 
 import csv
 import math
@@ -28,28 +31,27 @@ POWER = {
     "Tester": (12, 3),
 }
 
-# Shifts as local (start hour, hours long).
-MORNING, AFTERNOON, NIGHT = (6, 8), (14, 8), (22, 8)
-
-# Department: name, products, and per line its machine types, weekday shifts, Saturday morning.
+# Department: name, products, and per line its machine types, weekday shifts as local
+# (start hour, hours long), and whether its first shift also runs on Saturday morning.
+# Every line has its own shift set, so no two lines peak in the same interval.
 DEPARTMENTS = {
     "a": ("Stamping", ["Bracket", "Panel", "Hinge"], [
-        (["Press", "Press", "Shear"], [MORNING], True),
-        (["Press", "Shear", "Shear"], [MORNING, AFTERNOON], False),
-        (["Press", "Press"], [MORNING, AFTERNOON, NIGHT], False),
+        (["Press", "Press", "Shear"], [(6, 8)], True),
+        (["Press", "Shear", "Shear"], [(6, 8), (14, 8)], False),
+        (["Press", "Press"], [(6, 8), (14, 8), (22, 8)], False),
     ]),
     "b": ("Welding", ["Frame", "Subframe", "Crossbeam"], [
-        (["Welder", "Welder", "Robot"], [AFTERNOON], False),
-        (["Welder", "Robot", "Robot"], [MORNING, AFTERNOON, NIGHT], True),
-        (["Welder", "Robot"], [MORNING, AFTERNOON], False),
+        (["Welder", "Welder", "Robot"], [(14, 8)], False),
+        (["Welder", "Robot", "Robot"], [(5, 8), (13, 8), (21, 8)], True),
+        (["Welder", "Robot"], [(7, 8), (15, 8)], False),
     ]),
     "c": ("Painting", ["Door", "Hood"], [
-        (["Oven", "Sprayer", "Sprayer"], [MORNING, AFTERNOON], True),
-        (["Oven", "Sprayer"], [MORNING], False),
+        (["Oven", "Sprayer", "Sprayer"], [(6, 9), (15, 7)], True),
+        (["Oven", "Sprayer"], [(8, 8)], False),
     ]),
     "d": ("Assembly", ["Cabinet", "Housing"], [
-        (["Conveyor", "Robot", "Tester"], [MORNING, AFTERNOON], False),
-        (["Conveyor", "Tester"], [AFTERNOON], True),
+        (["Conveyor", "Robot", "Tester"], [(7, 9), (16, 6)], True),
+        (["Conveyor", "Tester"], [(13, 8)], False),
     ]),
 }
 
@@ -94,7 +96,7 @@ def build_orders(rng: random.Random, lines: dict, start: date, end: date) -> lis
     for line_id, (products, _, shifts, saturday) in lines.items():
         day = start
         while day < end:
-            windows = shifts if day.weekday() < 5 else [MORNING] if day.weekday() == 5 and saturday else []
+            windows = shifts if day.weekday() < 5 else shifts[:1] if day.weekday() == 5 and saturday else []
             for hour, length in windows:
                 begin = datetime.combine(day, time(hour), TZ)
                 finish = begin + timedelta(hours=length)
@@ -154,7 +156,9 @@ def generate(
             running[line_id][i] = a
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.unlink(missing_ok=True)
+    building = path.with_name(path.name + ".tmp")  # replaces the target only once complete
+    for stale in (building, Path(f"{building}.wal")):
+        stale.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         intervals_csv, kwh_csv, orders_csv = (Path(tmp) / f"{n}.csv" for n in ("intervals", "kwh", "orders"))
         with intervals_csv.open("w", newline="") as fi, kwh_csv.open("w", newline="") as fk:
@@ -204,7 +208,7 @@ def generate(
                 for o in orders
             )
 
-        con = duckdb.connect(str(path))
+        con = duckdb.connect(str(building))
         try:
             con.execute("""
                 CREATE TABLE meter(meter_id VARCHAR PRIMARY KEY, name VARCHAR, level VARCHAR,
@@ -245,6 +249,8 @@ def generate(
             )
         finally:
             con.close()
+    Path(f"{path}.wal").unlink(missing_ok=True)  # a stale WAL would be replayed onto the new file
+    building.replace(path)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 
-from agentic_ems.generator import generate
+from agentic_ems.generator import POWER, generate
 
 ROME = ZoneInfo("Europe/Rome")
 TABLES = ["meter", "reading", "tariff", "production_order", "dataset_info"]
@@ -31,6 +31,8 @@ def test_same_seed_same_database(tmp_path):
     first = fingerprint(tmp_path / "a.duckdb")
     assert first["reading"][0] == 43 * 3 * 96
     assert first == fingerprint(tmp_path / "b.duckdb")
+    generate(tmp_path / "c.duckdb", seed=1, **span)
+    assert fingerprint(tmp_path / "c.duckdb")["sum_kwh"] != first["sum_kwh"]
 
 
 def test_parent_margin_holds_every_interval(con):
@@ -123,15 +125,41 @@ def test_no_orders_on_sunday(con):
     for start, end in con.execute("SELECT start_utc, end_utc FROM production_order").fetchall():
         assert local(start).weekday() != 6
         assert local(end - timedelta(seconds=1)).weekday() != 6
+        assert end - start < timedelta(days=1)
 
 
-def test_two_lines_peak_at_different_instants(con):
-    def peak(line):
-        return con.execute(
-            "SELECT arg_max(ts_utc, kwh) FROM reading WHERE meter_id = ?", [line]
-        ).fetchall()[0]
+def test_every_line_peaks_at_its_own_instant(con):
+    peaks = con.execute("""
+        SELECT r.meter_id, arg_max(r.ts_utc, r.kwh)
+        FROM reading r JOIN meter m USING (meter_id)
+        WHERE m.level = 'line' GROUP BY r.meter_id
+    """).fetchall()
+    assert len(peaks) == 10
+    assert len({ts for _, ts in peaks}) == 10
 
-    assert peak("line_a1") != peak("line_b1")
+
+def test_lines_without_night_shift_are_on_standby_at_night(con):
+    # Standby per machine is standby_kw / 4 times U(0.9, 1.1); the line adds its margin in [0.03, 0.08].
+    # Bound: 0.9 * 1.03 * S - 1e-3 <= line kWh <= 1.1 * 1.08 * S + 1e-3, S the line's standby kWh.
+    standby: dict[str, float] = {}
+    for line_id, name in con.execute(
+        "SELECT parent_id, name FROM meter WHERE level = 'machine'"
+    ).fetchall():
+        standby[line_id] = standby.get(line_id, 0.0) + POWER[name.split()[0]][1] / 4
+    rows = con.execute("""
+        SELECT r.meter_id, r.ts_utc, r.local_date, r.kwh, EXISTS (
+            SELECT 1 FROM production_order o
+            WHERE o.line_id = r.meter_id AND o.start_utc <= r.ts_utc AND r.ts_utc < o.end_utc
+        )
+        FROM reading r JOIN meter m USING (meter_id)
+        WHERE m.level = 'line' AND m.meter_id NOT IN ('line_a3', 'line_b2')
+        AND substr(r.local_start, 12, 2) IN ('02', '03')
+    """).fetchall()
+    weekday_rows = [row for row in rows if row[2].weekday() < 5]
+    assert len(weekday_rows) == 8 * 10 * 8  # 8 lines, 10 weekdays, 8 intervals
+    for line_id, _, _, kwh, running in weekday_rows:
+        assert not running
+        assert 0.9 * 1.03 * standby[line_id] - 1e-3 <= kwh <= 1.1 * 1.08 * standby[line_id] + 1e-3
 
 
 def test_load_follows_production(con):
@@ -200,3 +228,14 @@ def test_solar_zero_at_night_and_seasonal(tmp_path):
                 assert kwh == 0
         totals[day] = sum(kwh for _, kwh in rows)
     assert totals[date(2026, 6, 16)] > totals[date(2025, 12, 16)] > 0
+
+
+def test_generate_replaces_target_and_stale_wal(tmp_path):
+    path = tmp_path / "plant.duckdb"
+    path.write_bytes(b"not a database")
+    (tmp_path / "plant.duckdb.wal").write_bytes(b"stale")
+    generate(path, start=date(2026, 5, 4), end=date(2026, 5, 5))
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["plant.duckdb"]
+    con = duckdb.connect(str(path), read_only=True)
+    assert con.execute("SELECT count(*) FROM reading").fetchall() == [(43 * 96,)]
+    con.close()
