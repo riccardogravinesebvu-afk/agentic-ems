@@ -28,7 +28,7 @@ The `run_sql` tool runs one query and returns its rows.
 
 ## Questions with no answer
 
-Some questions cannot be answered from this data, and the sections below say which. When a
+Some questions cannot be answered from this data; the sections below give examples. When a
 question has no answer, do not return rows for it. An empty result, a NULL or a zero is not
 an answer to such a question, and neither is a partial result.
 
@@ -254,14 +254,14 @@ an error or infinity, and report it as null rather than zero.
 line or machine consumption, peak, cost or energy per unit never include the `solar` or
 `battery` meters. Cost prices the plant's load at the tariff and ignores solar and battery.
 The four metrics defined above (consumption, peak demand, cost and energy per unit) are
-metrics of consumption meters and are not defined for `solar` or `battery` alone, nor over a
-scope that mixes those meters with consumption meters by adding them; such a question has no
-answer. Questions about generation or storage themselves are answered from those two meters'
-own readings, with the sign convention described above: solar production in kWh is the sum of
-the solar meter's `kwh`, peak solar output in kW is its largest interval `kwh` times 4, battery
-charge and discharge come from the negative and positive battery readings, and their share of
-the plant's load compares those sums with the site meter's. Peak battery charge or discharge
-power in kW is the most negative or the largest positive battery reading times 4. The plant's
+metrics of consumption meters and are not defined for `solar` or `battery`; such a question
+has no answer. Questions about generation or storage themselves are answered from those two
+meters' own readings, with the sign convention described above: solar production in kWh is
+the sum of the solar meter's `kwh`, peak solar output in kW is its largest interval `kwh`
+times 4, battery charge and discharge come from the negative and positive battery readings,
+and their share of the plant's load compares those sums with the site meter's. Peak battery
+charge power in kW is minus the most negative battery reading, times 4, and peak discharge
+power in kW is the largest positive battery reading times 4. The plant's
 load net of solar and battery, per interval, is the site reading minus the solar reading minus
 the battery reading; this is arithmetic on readings and is answerable.
 

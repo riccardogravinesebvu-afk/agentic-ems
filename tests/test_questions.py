@@ -1,6 +1,6 @@
 import re
 import tomllib
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from agentic_ems.generator import build_meters
@@ -27,6 +27,8 @@ def test_ids_unique_and_fields_in_closed_sets():
 
 
 def test_ask_names_no_meter_id_column_or_value():
+    # Only identifier-like column names are banned: plain words such as kWh, units and product
+    # are allowed in an ask on purpose, because people use them.
     # solar and battery are meter ids that are also the plain words people use for those meters.
     meter_ids = [m[0] for m in build_meters()[0] if m[0] not in ("solar", "battery")]
     schema = (ROOT / "docs" / "schema.md").read_text()
@@ -50,11 +52,11 @@ def test_every_date_lies_inside_the_dataset():
         days += [date(int(y), int(m), int(d)) for d, m, y in NUMERIC.findall(ask)]
         for m, y in MONTH.findall(ask):
             month = MONTHS.index(m.lower()) + 1
-            days += [date(int(y), month, 1), date(int(y) + month // 12, month % 12 + 1, 1)]  # first day, next month
-        assert all(FIRST <= d <= END for d in days), q["id"]
+            days += [date(int(y), month, 1), date(int(y) + month // 12, month % 12 + 1, 1) - timedelta(days=1)]
+        assert all(FIRST <= d < END for d in days), q["id"]
         # A year left after removing the dates above is a date this test could not read.
         assert not re.search(r"\b\d{4}\b", NUMERIC.sub("", MONTH.sub("", ask))), q["id"]
 
 
 def test_unanswerable_group_size():
-    assert 3 <= sum(q["group"] == "unanswerable" for q in QUESTIONS) <= 9
+    assert 3 <= sum(q["group"] == "unanswerable" for q in QUESTIONS) <= 8

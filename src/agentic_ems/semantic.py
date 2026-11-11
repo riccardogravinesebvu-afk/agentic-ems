@@ -46,7 +46,9 @@ METRICS: dict[str, Metric] = {
 RULES: dict[str, str] = {
     "R1": "A parent meter's reading includes all of its children, plus unmetered load and losses.",
     "R2": "A node's total is the node's own meter, never a sum of a lower level; "
-    "a list of meters may never contain a meter together with one of its ancestors, or a meter twice.",
+    "a list of meters may never contain a meter twice, or a meter together with one of its ancestors, "
+    "because the ancestor's reading already contains the descendant's energy, "
+    "so the two together equal the ancestor's own reading.",
     "R3": "peak_kw is coincident: per interval, sum the kWh of the scope's meters and multiply by 4, "
     "then take the maximum.",
     "R4": "cost_eur prices each interval's kWh at the tariff of that interval's band.",

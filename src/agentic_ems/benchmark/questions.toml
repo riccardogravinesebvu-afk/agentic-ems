@@ -1,6 +1,8 @@
 # The benchmark questions. Each one is written to read like a question plant staff type;
-# they are not logs of real users. Question types come from docs/golden-questions-draft.md
-# as reviewed by the owner on 2026-11-11 (see docs/review-log.md).
+# they are not logs of real users. Question types come from a draft list of question types
+# the owner read on 2026-11-11 (see docs/review-log.md); the draft's error-class table is
+# docs/error-classes.md, which also maps draft ids to the ids below.
+# The wording was then revised after a second reader's review the same day.
 #
 # Fields: id, group, ask (the only text the model sees, before the fixed shape line),
 # keys (key columns of the expected answer), source, mistake (what the question tests),
@@ -8,10 +10,8 @@
 # sees shape_note or mistake.
 #
 # Ids are contiguous within each group. Each question carries a comment with its draft id.
-# The draft's H21 is U9 here; its H22 is H21; its C4, C5, C6, C9, C11, C12 are M1 to M6;
-# its C7, C8, C10, C13 are C4 to C7.
-
-rejected = []
+# The draft's H21 is rejected (at the end); its H22 is H21; its C4, C5, C6, C9, C11, C12
+# are M1 to M6; its C7, C8, C10, C13 are C4 to C7.
 
 # ---------------------------------------------------------------- hierarchy
 
@@ -28,11 +28,11 @@ mistake = "The site meter added to the department meters (double_count), or the 
 [[question]]
 id = "H2"
 group = "hierarchy"
-ask = "assembly kWh, week of 13 April 2026"
+ask = "assembly kWh, Monday 13 to Sunday 19 April 2026"
 keys = []
 source = "public standard"
 mistake = "The Assembly department meter added to its lines (double_count), or its lines summed (children_sum)."
-shape_note = "The week is Monday 13 April to Sunday 19 April 2026: period 2026-04-13 to 2026-04-20."
+shape_note = "Period 2026-04-13 to 2026-04-20."
 
 # H3 = draft H3
 [[question]]
@@ -65,7 +65,7 @@ mistake = "The Stamping department row included with its three lines (extra_rows
 [[question]]
 id = "H6"
 group = "hierarchy"
-ask = "I'm looking into Welding line 2. How much did each machine on it draw in the week starting 21 September 2026?"
+ask = "I'm looking into Welding line 2. How much did each machine on it use in the week starting 21 September 2026?"
 keys = ["meter_id"]
 source = "public standard"
 mistake = "The Welding line 2 row included with its three machines (extra_rows)."
@@ -100,7 +100,9 @@ mistake = "The two Painting lines' peaks added (separate_peaks), or the departme
 shape_note = "Period 2025-11-10 to 2025-11-17, Monday to Sunday."
 
 # H10 = draft H10. Welding line 1 runs 14:00 to 22:00 and Painting line 2 08:00 to 16:00 on
-# weekdays, so the two overlap for two hours a day and the coincident peak is below the sum.
+# weekdays, so the two overlap two hours a day; each line's load ramps and dips at order
+# changeovers, so their peaks do not fall in the same interval and the coincident peak is
+# below the sum of the separate peaks.
 [[question]]
 id = "H10"
 group = "hierarchy"
@@ -108,13 +110,13 @@ ask = "Welding line 1 and Painting line 2 run off the same transformer. What was
 keys = []
 source = "public standard"
 mistake = "Each line's own peak added (separate_peaks) instead of the peak of the two lines' summed load per interval."
-shape_note = "Period 2026-03-09 to 2026-03-16. Check that the sum of the separate peaks differs from the coincident peak by more than the scoring tolerance."
+shape_note = "Period 2026-03-09 to 2026-03-16. Checked against the data: coincident peak 436.72 kW, separate peaks summed 473.77 kW."
 
 # H11 = draft H11
 [[question]]
 id = "H11"
 group = "hierarchy"
-ask = "Our August 2026 electricity cost for the whole factory, all in?"
+ask = "Our total electricity cost for the whole factory in August 2026?"
 keys = []
 source = "public standard"
 mistake = "Double counting carried into cost: the site priced together with its departments (double_count), or the departments' costs summed (children_sum)."
@@ -170,7 +172,7 @@ mistake = "The site added to its departments per band (double_count), or the dep
 [[question]]
 id = "H17"
 group = "hierarchy"
-ask = "Welding's electricity bill for December 2025, split by tariff band."
+ask = "Welding's electricity cost for December 2025, split by tariff band."
 keys = ["tariff_band"]
 source = "public standard"
 mistake = "The Welding department added to its lines per band (double_count), or its lines summed per band (children_sum)."
@@ -265,7 +267,7 @@ mistake = "Tariff price per interval, not total kWh times an average price."
 [[question]]
 id = "C6"
 group = "control"
-ask = "Shear 2 month by month, February to April 2026"
+ask = "Shear 2 kWh month by month, February to April 2026"
 keys = ["bucket_start"]
 source = "public standard"
 mistake = "Month boundaries in local time, not UTC."
@@ -304,18 +306,18 @@ mistake = "Draft C5. One ratio of totals per line, ten rows; not per-order ratio
 [[question]]
 id = "M3"
 group = "metric_definition"
-ask = "Day by day energy per unit on Assembly line 1 for the week of 24 November 2025"
+ask = "Day by day energy per unit on Stamping line 3, Monday 16 to Sunday 22 February 2026"
 keys = ["bucket_start"]
 source = "public standard"
-mistake = "Draft C6. Order units split across days by their share of each order's duration; Sunday 30 November has no units, so its row is null, not zero."
-shape_note = "Period 2025-11-24 to 2025-12-01, seven daily rows."
+mistake = "Draft C6. The night shift (22:00 to 06:00) runs orders across midnight, so each order's units are split between two days by their share of its duration, not given to the day it started; Sunday 22 February has no units, so its row is null, not zero."
+shape_note = "Period 2026-02-16 to 2026-02-23, seven daily rows. Five Stamping line 3 orders that week cross local midnight."
 
 # M4 = draft C9. The draft asked for four hours; a period is a whole number of days, so the
 # question asks for one whole day at the finest grain.
 [[question]]
 id = "M4"
 group = "metric_definition"
-ask = "Could I get Robot 2's readings at 15-minute resolution for all of 10 September 2026?"
+ask = "Could I get Robot 2's kWh every 15 minutes for all of 10 September 2026?"
 keys = ["bucket_start"]
 source = "public standard"
 mistake = "Draft C9. Finest grain: 96 rows of interval kWh, each bucket in local time."
@@ -324,7 +326,7 @@ mistake = "Draft C9. Finest grain: 96 rows of interval kWh, each bucket in local
 [[question]]
 id = "M5"
 group = "metric_definition"
-ask = "Clocks went back on Sunday 25 October 2026. What did Painting line 1 use in each hour of that day?"
+ask = "What did Painting line 1 use in each hour of Sunday 25 October 2026?"
 keys = ["bucket_start"]
 source = "public standard"
 mistake = "Draft C11. The autumn clock-change day has 25 local hours; the two 02:00 hours are separate rows, none merged."
@@ -355,17 +357,17 @@ shape_note = "One value: the sum of the solar meter's kWh over June 2026."
 [[question]]
 id = "O2"
 group = "out_of_scope"
-ask = "Net battery discharge over the week of 27 April 2026?"
+ask = "Over the seven days from 27 April 2026, how much more energy went into the battery than came out of it?"
 keys = []
 source = "public standard"
-mistake = "No metric covers the storage meter; charging hours must offset discharging hours."
-shape_note = "One value: the sum of all battery readings (discharge positive, charge negative), period 2026-04-27 to 2026-05-04."
+mistake = "No metric covers the storage meter; charging must be netted against discharging, with the sign of the battery readings handled."
+shape_note = "One value, expected positive: minus the sum of all battery readings (charge negative, discharge positive), that is charged kWh minus discharged kWh, period 2026-04-27 to 2026-05-04."
 
 # O3 = draft O3
 [[question]]
 id = "O3"
 group = "out_of_scope"
-ask = "Solar coverage for July 2026: what percent of the plant's consumption came from the panels?"
+ask = "Solar production in July 2026 as a percentage of the plant's consumption?"
 keys = []
 source = "public standard"
 mistake = "A ratio across meter kinds; the solar meter must not be added to the plant's consumption."
@@ -408,8 +410,8 @@ group = "out_of_scope"
 ask = "Number of hinges stamping made in May 2026?"
 keys = []
 source = "public standard"
-mistake = "No metric covers orders alone; an order that crosses a month boundary counts only its share."
-shape_note = "One value: units of Hinge orders, each order's units spread evenly over its intervals, summed over intervals in May 2026 local dates."
+mistake = "No metric covers orders alone; the units come from the production orders of one product."
+shape_note = "One value: the sum of units of Hinge orders in May 2026 local dates; no Hinge order crosses the month's boundaries."
 
 # O8 = draft O8. Asked for weekends only so the answer has a single value.
 [[question]]
@@ -435,7 +437,7 @@ shape_note = "One value in kWh: site kWh minus the sum of the four department me
 [[question]]
 id = "O10"
 group = "out_of_scope"
-ask = "What share of the plant's total did each department account for in December 2025?"
+ask = "What percentage of the plant's total did each department account for in December 2025?"
 keys = ["meter_id"]
 source = "public standard"
 mistake = "A ratio across levels, with the site meter as the denominator, not the sum of the departments."
@@ -449,7 +451,7 @@ ask = "How many hours in May 2026 was the plant drawing more than 1,500 kW?"
 keys = []
 source = "public standard"
 mistake = "A count of intervals above a threshold, on the site meter's interval kW."
-shape_note = "One value in hours: the number of 15-minute intervals in May 2026 with site kWh times 4 above 1500, divided by 4. The threshold is an estimate from the generator's power and shift tables; confirm against the data that it is crossed in a meaningful number of hours."
+shape_note = "One value in hours: the number of 15-minute intervals in May 2026 with site kWh times 4 above 1500, divided by 4. Checked against the data: 152.25 hours above 1,500 kW in May 2026, maximum 2,014 kW."
 
 # O12 = draft O12. Asked for one product so the answer has a single value.
 [[question]]
@@ -465,7 +467,7 @@ shape_note = "One value: the Painting lines' kWh in intervals covered by Hood or
 [[question]]
 id = "O13"
 group = "out_of_scope"
-ask = "On an average day in April 2026, how much does Painting line 2 consume?"
+ask = "On average per day, how much did Painting line 2 consume over all 30 days of April 2026, weekends included?"
 keys = []
 source = "error class P6"
 mistake = "Statistics over daily totals; averaging 15-minute rows gives a number 96 times too small."
@@ -555,10 +557,13 @@ keys = []
 source = "error class P19"
 mistake = "Five machines are presses and there is no period; the refusal should say what is missing."
 
-# U9 = draft H21
-[[question]]
-id = "U9"
+# ---------------------------------------------------------------- rejected
+
+# draft H21, rejected after the second reader's review on 2026-11-11
+[[rejected]]
+id = "draft H21"
 group = "unanswerable"
+reason = "The sum is plain arithmetic on two quantities that are both in the data, so a refusal as the only correct outcome is disputable; the error class is already covered by O1 and O3."
 ask = "If I add the solar array's production on top of the plant's consumption for April 2026, what total do I get?"
 keys = []
 source = "public standard"

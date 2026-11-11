@@ -1,7 +1,9 @@
-# Error classes and what version 1 does with each (question ids as in the draft question list)
+# Error classes and what version 1 does with each
 
 These are errors typical of energy analytics systems in general. Each one is either enforced
-by the semantic layer, tested by a question above, or left out with its reason.
+by the semantic layer, tested by a question in `src/agentic_ems/benchmark/questions.toml`, or
+left out with its reason. The question ids in the table are those of the draft question list;
+the mapping to the final ids follows the table.
 
 | Class | Typical error | In version 1 |
 |---|---|---|
@@ -25,3 +27,16 @@ by the semantic layer, tested by a question above, or left out with its reason.
 | P18 | Consumption lost through an incomplete link to a department | Out: the synthetic tree has one parent link and it is complete |
 | P19 | Scope narrowed or widened by mistake | U8 |
 | P20 | Counter resets, gaps and scale factors ignored | Out: the generator writes clean interval energy; stated as a limit in `docs/golden.md` |
+
+## Draft ids and final ids
+
+| Draft | Final |
+|---|---|
+| H1 to H20 | H1 to H20 |
+| H21 | rejected (`[[rejected]]` in the questions file) |
+| H22 | H21 |
+| C1, C2, C3 | C1, C2, C3 |
+| C7, C8, C10, C13 | C4, C5, C6, C7 |
+| C4, C5, C6, C9, C11, C12 | M1, M2, M3, M4, M5, M6 |
+| O1 to O14 | O1 to O14 |
+| U1 to U8 | U1 to U8 |
