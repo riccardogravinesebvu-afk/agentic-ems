@@ -51,7 +51,8 @@ def _number(value) -> float | None:
 def _table(columns, rows, keys: list[str]) -> dict | None:
     """Key tuple to value, or None when the rows cannot be read in the question's shape."""
     try:
-        names = list(columns)
+        # SQL identifiers ignore case, so `AS Value` names the value column; the values stay exact.
+        names = [n.casefold() if isinstance(n, str) else n for n in columns]
         if any(names.count(name) != 1 for name in [*keys, "value"]):
             return None
         index = [names.index(key) for key in keys]

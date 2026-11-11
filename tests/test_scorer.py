@@ -2,6 +2,7 @@ import tomllib
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 
+import duckdb
 import pytest
 
 from agentic_ems.agent import RunRecord
@@ -13,7 +14,14 @@ from agentic_ems.benchmark.verify import (
     load_questions,
     load_truth,
 )
-from agentic_ems.semantic import MetricRequest, load_catalog, open_db, query, validate
+from agentic_ems.semantic import (
+    MetricRequest,
+    execute_limited,
+    load_catalog,
+    open_db,
+    query,
+    validate,
+)
 
 QUESTIONS = load_questions()
 REQUESTS = {qid: entry["request"] for qid, entry in tomllib.loads(REFERENCE_SQL.read_text()).items() if "request" in entry}
@@ -138,6 +146,15 @@ def test_extra_columns_ignored_missing_column_other_wrong():
     assert outcome(["bucket_start", "kwh"], REF[1]) == "other_wrong"
 
 
+def test_column_names_match_without_regard_to_case():
+    by_meter = question(keys=("meter_id",))
+    meter_truth = Truth((["meter_id", "value"], [("line_a1", 1.0)]), [])
+    assert outcome(["Meter_ID", "VALUE"], [("line_a1", 1.0)], by_meter, meter_truth) == "correct"
+    assert outcome(["Bucket_Start", "Value"], REF[1]) == "correct"
+    assert outcome(["meter_id", "value", "VALUE"], [("line_a1", 1.0, 1.0)], by_meter, meter_truth) == "other_wrong"
+    assert outcome(["bucket_start", "value", "VALUE"], [(b, v, v) for b, v in REF[1]]) == "other_wrong"
+
+
 def test_row_order_ignored():
     assert outcome(REF[0], list(reversed(REF[1]))) == "correct"
 
@@ -149,6 +166,18 @@ def test_offset_forms_of_same_instant_match():
     assert outcome(REF[0], [(native[0], 100.0), (native[1], 0.0)]) == "correct"
     # The same wall-clock text with the other offset is another instant.
     assert outcome(REF[0], [("2026-10-25T02:00:00+01:00", 100.0), ("2026-10-25T02:00:00+02:00", 0.0)]) == "other_wrong"
+
+
+def test_duckdb_timestamptz_matches_reference_text():
+    con = duckdb.connect()
+    con.execute("SET TimeZone = 'Europe/Rome'")
+    columns, rows = execute_limited(con, """
+        SELECT * FROM (VALUES (TIMESTAMPTZ '2026-10-25 00:00:00+00', 100.0), (TIMESTAMPTZ '2026-10-25 01:00:00+00', 0.0))
+        AS t(bucket_start, value)
+    """)
+    con.close()
+    assert all(type(row[0].tzinfo).__module__.startswith("pytz") for row in rows)  # what DuckDB really returns
+    assert outcome(columns, rows) == "correct"
 
 
 def test_extra_or_missing_rows_never_correct():
