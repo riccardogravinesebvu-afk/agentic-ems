@@ -159,6 +159,69 @@ def validate(request: MetricRequest, catalog: Catalog) -> None:
         )
 
 
+BUCKETS = {"15min": "local_start", "hour": "hour_start", "day": "day_start", "month": "month_start"}
+# Per metric: the value expression and the FROM clause it reads; peak_kw is built in compile.
+VALUES = {
+    "consumption_kwh": ("sum(r.kwh)", "reading r"),
+    "cost_eur": ("sum(r.kwh * t.price_eur_per_kwh)", "reading r JOIN tariff t ON t.tariff_band = r.tariff_band"),
+    "energy_per_unit": (
+        "sum(r.kwh) / NULLIF(sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)), 0)",
+        (
+            "reading r LEFT JOIN production_order o ON o.line_id = r.meter_id "
+            "AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc"
+        ),
+    ),
+}
+
+
+@dataclass
+class Compiled:
+    sql: str
+    params: list
+    columns: list[str]
+
+
+def compile(request: MetricRequest, catalog: Catalog) -> Compiled:
+    """Turn a valid request into SQL with bound parameters; identifiers come only from closed sets."""
+    validate(request, catalog)
+    if request.meters is not None:
+        scope = request.meters
+    else:
+        node = request.node if request.node is not None else "site"
+        scope = (
+            [node]
+            if request.breakdown is None
+            else [m.id for m in catalog.meters.values() if m.level == request.breakdown and node in _ancestors(m.id, catalog)]
+        )
+
+    keys = []  # (expression, column name)
+    if request.breakdown is not None:
+        keys.append(("r.meter_id", "meter_id"))
+    if request.grain != "total":
+        keys.append((f"r.{BUCKETS[request.grain]}", "bucket_start"))
+    if request.by_tariff_band:
+        keys.append(("r.tariff_band", "tariff_band"))
+    exprs = [expr for expr, _ in keys]
+
+    where = "WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ?"
+    if request.metric == "peak_kw":
+        inner = ", ".join([*exprs, "r.ts_utc"])
+        value, source = "max(r.kw)", f"(SELECT {inner}, sum(r.kwh) * 4 AS kw FROM reading r {where} GROUP BY {inner}) r"
+        where = ""
+    else:
+        value, source = VALUES[request.metric]
+
+    select = ", ".join([f"{expr} AS {name}" for expr, name in keys] + [f"{value} AS value"])
+    sql = f"SELECT {select} FROM {source} {where}".rstrip()
+    if keys:
+        # Bucket strings do not sort in time order across a clock change, so order by the bucket's first instant.
+        order = [
+            f"min(min(r.ts_utc)) OVER (PARTITION BY {expr})" if name == "bucket_start" else expr for expr, name in keys
+        ]
+        sql += f" GROUP BY {', '.join(exprs)} ORDER BY {', '.join(order)}"
+    return Compiled(sql, [scope, request.start, request.end], [name for _, name in keys] + ["value"])
+
+
 def catalogue_text(catalog: Catalog) -> str:
     lines = ["Metrics:"]
     for name, metric in METRICS.items():
