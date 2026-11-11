@@ -1,0 +1,1131 @@
+# Hand-written reference queries, one table per answerable question id of questions.toml.
+# Written from docs/schema.md and the spec, never produced by a benchmark arm or the compiler.
+#
+# [ID]            sql: the reference query, returning the question's key columns
+#                 (meter_id, bucket_start, tariff_band, in that order) and then value.
+# [ID.request]    the MetricRequest a correct semantic-layer agent would send
+#                 (hierarchy, control and metric-definition questions only).
+# [[ID.wrong]]    known wrong answers (hierarchy questions only): the complete row set a
+#                 mistaken aggregation returns, with category double_count, children_sum,
+#                 separate_peaks or extra_rows.
+# Unanswerable questions have no entry. Periods are half-open on local dates (R10).
+
+# ---------------------------------------------------------------- hierarchy
+
+[H1]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-03-01'
+"""
+
+[H1.request]
+metric = "consumption_kwh"
+start = 2026-02-01
+end = 2026-03-01
+
+[[H1.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-03-01'
+"""
+
+[[H1.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-03-01'
+"""
+
+[H2]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'dept_d'
+  AND local_date >= DATE '2026-04-13' AND local_date < DATE '2026-04-20'
+"""
+
+[H2.request]
+metric = "consumption_kwh"
+node = "dept_d"
+start = 2026-04-13
+end = 2026-04-20
+
+[[H2.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_d', 'line_d1', 'line_d2')
+  AND local_date >= DATE '2026-04-13' AND local_date < DATE '2026-04-20'
+"""
+
+[[H2.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_d1', 'line_d2')
+  AND local_date >= DATE '2026-04-13' AND local_date < DATE '2026-04-20'
+"""
+
+[H3]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'line_a2'
+  AND local_date >= DATE '2026-06-04' AND local_date < DATE '2026-06-05'
+"""
+
+[H3.request]
+metric = "consumption_kwh"
+node = "line_a2"
+start = 2026-06-04
+end = 2026-06-05
+
+[[H3.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_a2', 'mach_a2_1', 'mach_a2_2', 'mach_a2_3')
+  AND local_date >= DATE '2026-06-04' AND local_date < DATE '2026-06-05'
+"""
+
+[[H3.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('mach_a2_1', 'mach_a2_2', 'mach_a2_3')
+  AND local_date >= DATE '2026-06-04' AND local_date < DATE '2026-06-05'
+"""
+
+[H4]
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2025-11-01' AND local_date < DATE '2025-12-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H4.request]
+metric = "consumption_kwh"
+breakdown = "department"
+start = 2025-11-01
+end = 2025-12-01
+
+[[H4.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2025-11-01' AND local_date < DATE '2025-12-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[[H4.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN (SELECT meter_id FROM meter WHERE level IN ('department', 'line'))
+  AND local_date >= DATE '2025-11-01' AND local_date < DATE '2025-12-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H5]
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_a1', 'line_a2', 'line_a3')
+  AND local_date >= DATE '2026-05-01' AND local_date < DATE '2026-06-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H5.request]
+metric = "consumption_kwh"
+node = "dept_a"
+breakdown = "line"
+start = 2026-05-01
+end = 2026-06-01
+
+[[H5.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'line_a1', 'line_a2', 'line_a3')
+  AND local_date >= DATE '2026-05-01' AND local_date < DATE '2026-06-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H6]
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('mach_b2_1', 'mach_b2_2', 'mach_b2_3')
+  AND local_date >= DATE '2026-09-21' AND local_date < DATE '2026-09-28'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H6.request]
+metric = "consumption_kwh"
+node = "line_b2"
+breakdown = "machine"
+start = 2026-09-21
+end = 2026-09-28
+
+[[H6.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_b2', 'mach_b2_1', 'mach_b2_2', 'mach_b2_3')
+  AND local_date >= DATE '2026-09-21' AND local_date < DATE '2026-09-28'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H7]
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('mach_d1_1', 'mach_d1_2', 'mach_d1_3', 'mach_d2_1', 'mach_d2_2')
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-08-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H7.request]
+metric = "consumption_kwh"
+node = "dept_d"
+breakdown = "machine"
+start = 2026-07-01
+end = 2026-08-01
+
+[[H7.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_d1', 'line_d2', 'mach_d1_1', 'mach_d1_2', 'mach_d1_3', 'mach_d2_1', 'mach_d2_2')
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-08-01'
+GROUP BY meter_id
+ORDER BY meter_id
+"""
+
+[H8]
+sql = """
+SELECT max(kwh) * 4 AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2025-12-01' AND local_date < DATE '2026-01-01'
+"""
+
+[H8.request]
+metric = "peak_kw"
+start = 2025-12-01
+end = 2026-01-01
+
+[[H8.wrong]]
+category = "separate_peaks"
+sql = """
+SELECT sum(peak_kw) AS value
+FROM (
+  SELECT meter_id, max(kwh) * 4 AS peak_kw
+  FROM reading
+  WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+    AND local_date >= DATE '2025-12-01' AND local_date < DATE '2026-01-01'
+  GROUP BY meter_id
+)
+"""
+
+[[H8.wrong]]
+category = "double_count"
+sql = """
+SELECT max(kw) AS value
+FROM (
+  SELECT ts_utc, sum(kwh) * 4 AS kw
+  FROM reading
+  WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+    AND local_date >= DATE '2025-12-01' AND local_date < DATE '2026-01-01'
+  GROUP BY ts_utc
+)
+"""
+
+[[H8.wrong]]
+category = "children_sum"
+sql = """
+SELECT max(kw) AS value
+FROM (
+  SELECT ts_utc, sum(kwh) * 4 AS kw
+  FROM reading
+  WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+    AND local_date >= DATE '2025-12-01' AND local_date < DATE '2026-01-01'
+  GROUP BY ts_utc
+)
+"""
+
+[H9]
+sql = """
+SELECT max(kwh) * 4 AS value
+FROM reading
+WHERE meter_id = 'dept_c'
+  AND local_date >= DATE '2025-11-10' AND local_date < DATE '2025-11-17'
+"""
+
+[H9.request]
+metric = "peak_kw"
+node = "dept_c"
+start = 2025-11-10
+end = 2025-11-17
+
+[[H9.wrong]]
+category = "separate_peaks"
+sql = """
+SELECT sum(peak_kw) AS value
+FROM (
+  SELECT meter_id, max(kwh) * 4 AS peak_kw
+  FROM reading
+  WHERE meter_id IN ('line_c1', 'line_c2')
+    AND local_date >= DATE '2025-11-10' AND local_date < DATE '2025-11-17'
+  GROUP BY meter_id
+)
+"""
+
+[[H9.wrong]]
+category = "double_count"
+sql = """
+SELECT max(kw) AS value
+FROM (
+  SELECT ts_utc, sum(kwh) * 4 AS kw
+  FROM reading
+  WHERE meter_id IN ('dept_c', 'line_c1', 'line_c2')
+    AND local_date >= DATE '2025-11-10' AND local_date < DATE '2025-11-17'
+  GROUP BY ts_utc
+)
+"""
+
+[[H9.wrong]]
+category = "children_sum"
+sql = """
+SELECT max(kw) AS value
+FROM (
+  SELECT ts_utc, sum(kwh) * 4 AS kw
+  FROM reading
+  WHERE meter_id IN ('line_c1', 'line_c2')
+    AND local_date >= DATE '2025-11-10' AND local_date < DATE '2025-11-17'
+  GROUP BY ts_utc
+)
+"""
+
+[H10]
+sql = """
+SELECT max(kw) AS value
+FROM (
+  SELECT ts_utc, sum(kwh) * 4 AS kw
+  FROM reading
+  WHERE meter_id IN ('line_b1', 'line_c2')
+    AND local_date >= DATE '2026-03-09' AND local_date < DATE '2026-03-16'
+  GROUP BY ts_utc
+)
+"""
+
+[H10.request]
+metric = "peak_kw"
+meters = ["line_b1", "line_c2"]
+start = 2026-03-09
+end = 2026-03-16
+
+[[H10.wrong]]
+category = "separate_peaks"
+sql = """
+SELECT sum(peak_kw) AS value
+FROM (
+  SELECT meter_id, max(kwh) * 4 AS peak_kw
+  FROM reading
+  WHERE meter_id IN ('line_b1', 'line_c2')
+    AND local_date >= DATE '2026-03-09' AND local_date < DATE '2026-03-16'
+  GROUP BY meter_id
+)
+"""
+
+[H11]
+sql = """
+SELECT sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id = 'site'
+  AND r.local_date >= DATE '2026-08-01' AND r.local_date < DATE '2026-09-01'
+"""
+
+[H11.request]
+metric = "cost_eur"
+start = 2026-08-01
+end = 2026-09-01
+
+[[H11.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND r.local_date >= DATE '2026-08-01' AND r.local_date < DATE '2026-09-01'
+"""
+
+[[H11.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND r.local_date >= DATE '2026-08-01' AND r.local_date < DATE '2026-09-01'
+"""
+
+[H12]
+sql = """
+SELECT r.meter_id, sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND r.local_date >= DATE '2026-01-01' AND r.local_date < DATE '2026-02-01'
+GROUP BY r.meter_id
+ORDER BY r.meter_id
+"""
+
+[H12.request]
+metric = "cost_eur"
+breakdown = "department"
+start = 2026-01-01
+end = 2026-02-01
+
+[[H12.wrong]]
+category = "extra_rows"
+sql = """
+SELECT r.meter_id, sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND r.local_date >= DATE '2026-01-01' AND r.local_date < DATE '2026-02-01'
+GROUP BY r.meter_id
+ORDER BY r.meter_id
+"""
+
+[H13]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_a1', 'line_a3')
+  AND local_date >= DATE '2026-09-01' AND local_date < DATE '2026-10-01'
+"""
+
+[H13.request]
+metric = "consumption_kwh"
+meters = ["line_a1", "line_a3"]
+start = 2026-09-01
+end = 2026-10-01
+
+[[H13.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'line_a1', 'line_a3')
+  AND local_date >= DATE '2026-09-01' AND local_date < DATE '2026-10-01'
+"""
+
+[[H13.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('mach_a1_1', 'mach_a1_2', 'mach_a1_3', 'mach_a3_1', 'mach_a3_2')
+  AND local_date >= DATE '2026-09-01' AND local_date < DATE '2026-10-01'
+"""
+
+[H14]
+sql = """
+SELECT day_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-06-15' AND local_date < DATE '2026-06-22'
+GROUP BY day_start
+ORDER BY min(ts_utc)
+"""
+
+[H14.request]
+metric = "consumption_kwh"
+start = 2026-06-15
+end = 2026-06-22
+grain = "day"
+
+[[H14.wrong]]
+category = "children_sum"
+sql = """
+SELECT day_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-06-15' AND local_date < DATE '2026-06-22'
+GROUP BY day_start
+ORDER BY min(ts_utc)
+"""
+
+[[H14.wrong]]
+category = "double_count"
+sql = """
+SELECT day_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-06-15' AND local_date < DATE '2026-06-22'
+GROUP BY day_start
+ORDER BY min(ts_utc)
+"""
+
+[H15]
+sql = """
+SELECT meter_id, month_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-10-01'
+GROUP BY meter_id, month_start
+ORDER BY meter_id, min(ts_utc)
+"""
+
+[H15.request]
+metric = "consumption_kwh"
+breakdown = "department"
+start = 2026-07-01
+end = 2026-10-01
+grain = "month"
+
+[[H15.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, month_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-10-01'
+GROUP BY meter_id, month_start
+ORDER BY meter_id, min(ts_utc)
+"""
+
+[[H15.wrong]]
+category = "extra_rows"
+sql = """
+SELECT meter_id, month_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN (SELECT meter_id FROM meter WHERE level IN ('department', 'line'))
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-10-01'
+GROUP BY meter_id, month_start
+ORDER BY meter_id, min(ts_utc)
+"""
+
+[H16]
+sql = """
+SELECT tariff_band, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-10-01' AND local_date < DATE '2026-11-01'
+GROUP BY tariff_band
+ORDER BY tariff_band
+"""
+
+[H16.request]
+metric = "consumption_kwh"
+start = 2026-10-01
+end = 2026-11-01
+by_tariff_band = true
+
+[[H16.wrong]]
+category = "double_count"
+sql = """
+SELECT tariff_band, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-10-01' AND local_date < DATE '2026-11-01'
+GROUP BY tariff_band
+ORDER BY tariff_band
+"""
+
+[[H16.wrong]]
+category = "children_sum"
+sql = """
+SELECT tariff_band, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-10-01' AND local_date < DATE '2026-11-01'
+GROUP BY tariff_band
+ORDER BY tariff_band
+"""
+
+[H17]
+sql = """
+SELECT r.tariff_band, sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id = 'dept_b'
+  AND r.local_date >= DATE '2025-12-01' AND r.local_date < DATE '2026-01-01'
+GROUP BY r.tariff_band
+ORDER BY r.tariff_band
+"""
+
+[H17.request]
+metric = "cost_eur"
+node = "dept_b"
+start = 2025-12-01
+end = 2026-01-01
+by_tariff_band = true
+
+[[H17.wrong]]
+category = "double_count"
+sql = """
+SELECT r.tariff_band, sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('dept_b', 'line_b1', 'line_b2', 'line_b3')
+  AND r.local_date >= DATE '2025-12-01' AND r.local_date < DATE '2026-01-01'
+GROUP BY r.tariff_band
+ORDER BY r.tariff_band
+"""
+
+[[H17.wrong]]
+category = "children_sum"
+sql = """
+SELECT r.tariff_band, sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id IN ('line_b1', 'line_b2', 'line_b3')
+  AND r.local_date >= DATE '2025-12-01' AND r.local_date < DATE '2026-01-01'
+GROUP BY r.tariff_band
+ORDER BY r.tariff_band
+"""
+
+[H18]
+sql = """
+SELECT hour_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-03-18' AND local_date < DATE '2026-03-19'
+GROUP BY hour_start
+ORDER BY min(ts_utc)
+"""
+
+[H18.request]
+metric = "consumption_kwh"
+start = 2026-03-18
+end = 2026-03-19
+grain = "hour"
+
+[[H18.wrong]]
+category = "children_sum"
+sql = """
+SELECT hour_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-03-18' AND local_date < DATE '2026-03-19'
+GROUP BY hour_start
+ORDER BY min(ts_utc)
+"""
+
+[[H18.wrong]]
+category = "double_count"
+sql = """
+SELECT hour_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-03-18' AND local_date < DATE '2026-03-19'
+GROUP BY hour_start
+ORDER BY min(ts_utc)
+"""
+
+# The department already contains its line 2, so the answer is the department's meter alone.
+[H19]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'dept_c'
+  AND local_date >= DATE '2026-01-01' AND local_date < DATE '2026-02-01'
+"""
+
+[H19.request]
+metric = "consumption_kwh"
+node = "dept_c"
+start = 2026-01-01
+end = 2026-02-01
+
+[[H19.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('dept_c', 'line_c2')
+  AND local_date >= DATE '2026-01-01' AND local_date < DATE '2026-02-01'
+"""
+
+# Everything in Welding added up is the department's own meter.
+[H20]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'dept_b'
+  AND local_date >= DATE '2026-04-01' AND local_date < DATE '2026-05-01'
+"""
+
+[H20.request]
+metric = "consumption_kwh"
+node = "dept_b"
+start = 2026-04-01
+end = 2026-05-01
+
+[[H20.wrong]]
+category = "double_count"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN (
+    'dept_b', 'line_b1', 'line_b2', 'line_b3',
+    'mach_b1_1', 'mach_b1_2', 'mach_b1_3', 'mach_b2_1', 'mach_b2_2', 'mach_b2_3', 'mach_b3_1', 'mach_b3_2'
+  )
+  AND local_date >= DATE '2026-04-01' AND local_date < DATE '2026-05-01'
+"""
+
+[[H20.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('line_b1', 'line_b2', 'line_b3')
+  AND local_date >= DATE '2026-04-01' AND local_date < DATE '2026-05-01'
+"""
+
+[[H20.wrong]]
+category = "children_sum"
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id IN ('mach_b1_1', 'mach_b1_2', 'mach_b1_3', 'mach_b2_1', 'mach_b2_2', 'mach_b2_3', 'mach_b3_1', 'mach_b3_2')
+  AND local_date >= DATE '2026-04-01' AND local_date < DATE '2026-05-01'
+"""
+
+# The site's load per 15-minute interval in kW: its interval kWh times 4.
+[H21]
+sql = """
+SELECT local_start AS bucket_start, sum(kwh) * 4 AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-02-11' AND local_date < DATE '2026-02-12'
+GROUP BY local_start
+ORDER BY min(ts_utc)
+"""
+
+[H21.request]
+metric = "peak_kw"
+start = 2026-02-11
+end = 2026-02-12
+grain = "15min"
+
+[[H21.wrong]]
+category = "children_sum"
+sql = """
+SELECT local_start AS bucket_start, sum(kwh) * 4 AS value
+FROM reading
+WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-02-11' AND local_date < DATE '2026-02-12'
+GROUP BY local_start
+ORDER BY min(ts_utc)
+"""
+
+[[H21.wrong]]
+category = "double_count"
+sql = """
+SELECT local_start AS bucket_start, sum(kwh) * 4 AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-02-11' AND local_date < DATE '2026-02-12'
+GROUP BY local_start
+ORDER BY min(ts_utc)
+"""
+
+# ---------------------------------------------------------------- control
+
+[C1]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_c2_1'
+  AND local_date >= DATE '2026-01-27' AND local_date < DATE '2026-01-28'
+"""
+
+[C1.request]
+metric = "consumption_kwh"
+node = "mach_c2_1"
+start = 2026-01-27
+end = 2026-01-28
+
+[C2]
+sql = """
+SELECT max(kwh) * 4 AS value
+FROM reading
+WHERE meter_id = 'mach_b2_1'
+  AND local_date >= DATE '2026-10-05' AND local_date < DATE '2026-10-12'
+"""
+
+[C2.request]
+metric = "peak_kw"
+node = "mach_b2_1"
+start = 2026-10-05
+end = 2026-10-12
+
+[C3]
+sql = """
+SELECT hour_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_a3_1'
+  AND local_date >= DATE '2026-04-08' AND local_date < DATE '2026-04-09'
+GROUP BY hour_start
+ORDER BY min(ts_utc)
+"""
+
+[C3.request]
+metric = "consumption_kwh"
+node = "mach_a3_1"
+start = 2026-04-08
+end = 2026-04-09
+grain = "hour"
+
+[C4]
+sql = """
+SELECT tariff_band, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_d1_3'
+  AND local_date >= DATE '2026-09-01' AND local_date < DATE '2026-10-01'
+GROUP BY tariff_band
+ORDER BY tariff_band
+"""
+
+[C4.request]
+metric = "consumption_kwh"
+node = "mach_d1_3"
+start = 2026-09-01
+end = 2026-10-01
+by_tariff_band = true
+
+[C5]
+sql = """
+SELECT sum(r.kwh * t.price_eur_per_kwh) AS value
+FROM reading r
+JOIN tariff t ON t.tariff_band = r.tariff_band
+WHERE r.meter_id = 'mach_b3_2'
+  AND r.local_date >= DATE '2025-11-01' AND r.local_date < DATE '2025-12-01'
+"""
+
+[C5.request]
+metric = "cost_eur"
+node = "mach_b3_2"
+start = 2025-11-01
+end = 2025-12-01
+
+[C6]
+sql = """
+SELECT month_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_a2_2'
+  AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01'
+GROUP BY month_start
+ORDER BY min(ts_utc)
+"""
+
+[C6.request]
+metric = "consumption_kwh"
+node = "mach_a2_2"
+start = 2026-02-01
+end = 2026-05-01
+grain = "month"
+
+# press3 is Press 3, mach_a2_1.
+[C7]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_a2_1'
+  AND local_date >= DATE '2026-08-01' AND local_date < DATE '2026-09-01'
+"""
+
+[C7.request]
+metric = "consumption_kwh"
+node = "mach_a2_1"
+start = 2026-08-01
+end = 2026-09-01
+
+# ---------------------------------------------------------------- metric definition
+# Energy per unit (R5, R6): the line's own kWh over its units, each order's units spread
+# evenly over its 15-minute intervals; intervals with no order keep their kWh and add no
+# units; a cell with no units is NULL.
+
+[M1]
+sql = """
+SELECT sum(r.kwh) / NULLIF(sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)), 0) AS value
+FROM reading r
+LEFT JOIN production_order o
+  ON o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc
+WHERE r.meter_id = 'line_b1'
+  AND r.local_date >= DATE '2026-10-01' AND r.local_date < DATE '2026-11-01'
+"""
+
+[M1.request]
+metric = "energy_per_unit"
+node = "line_b1"
+start = 2026-10-01
+end = 2026-11-01
+
+[M2]
+sql = """
+SELECT r.meter_id, sum(r.kwh) / NULLIF(sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)), 0) AS value
+FROM reading r
+LEFT JOIN production_order o
+  ON o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc
+WHERE r.meter_id IN (SELECT meter_id FROM meter WHERE level = 'line')
+  AND r.local_date >= DATE '2026-06-01' AND r.local_date < DATE '2026-07-01'
+GROUP BY r.meter_id
+ORDER BY r.meter_id
+"""
+
+[M2.request]
+metric = "energy_per_unit"
+breakdown = "line"
+start = 2026-06-01
+end = 2026-07-01
+
+[M3]
+sql = """
+SELECT r.day_start AS bucket_start, sum(r.kwh) / NULLIF(sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)), 0) AS value
+FROM reading r
+LEFT JOIN production_order o
+  ON o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc
+WHERE r.meter_id = 'line_a3'
+  AND r.local_date >= DATE '2026-02-16' AND r.local_date < DATE '2026-02-23'
+GROUP BY r.day_start
+ORDER BY min(r.ts_utc)
+"""
+
+[M3.request]
+metric = "energy_per_unit"
+node = "line_a3"
+start = 2026-02-16
+end = 2026-02-23
+grain = "day"
+
+[M4]
+sql = """
+SELECT local_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'mach_b2_2'
+  AND local_date >= DATE '2026-09-10' AND local_date < DATE '2026-09-11'
+GROUP BY local_start
+ORDER BY min(ts_utc)
+"""
+
+[M4.request]
+metric = "consumption_kwh"
+node = "mach_b2_2"
+start = 2026-09-10
+end = 2026-09-11
+grain = "15min"
+
+[M5]
+sql = """
+SELECT hour_start AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'line_c1'
+  AND local_date >= DATE '2026-10-25' AND local_date < DATE '2026-10-26'
+GROUP BY hour_start
+ORDER BY min(ts_utc)
+"""
+
+[M5.request]
+metric = "consumption_kwh"
+node = "line_c1"
+start = 2026-10-25
+end = 2026-10-26
+grain = "hour"
+
+[M6]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'line_d2'
+  AND local_date >= DATE '2026-05-11' AND local_date < DATE '2026-05-25'
+"""
+
+[M6.request]
+metric = "consumption_kwh"
+node = "line_d2"
+start = 2026-05-11
+end = 2026-05-25
+
+# ---------------------------------------------------------------- out of scope
+
+[O1]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'solar'
+  AND local_date >= DATE '2026-06-01' AND local_date < DATE '2026-07-01'
+"""
+
+# Charged minus discharged: minus the sum of the signed battery readings.
+[O2]
+sql = """
+SELECT -sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'battery'
+  AND local_date >= DATE '2026-04-27' AND local_date < DATE '2026-05-04'
+"""
+
+[O3]
+sql = """
+SELECT 100 * sum(kwh) FILTER (WHERE meter_id = 'solar') / sum(kwh) FILTER (WHERE meter_id = 'site') AS value
+FROM reading
+WHERE meter_id IN ('solar', 'site')
+  AND local_date >= DATE '2026-07-01' AND local_date < DATE '2026-08-01'
+"""
+
+[O4]
+sql = """
+WITH machine_kwh AS (
+  SELECT r.meter_id, sum(r.kwh) AS value
+  FROM reading r
+  JOIN meter m ON m.meter_id = r.meter_id
+  WHERE m.level = 'machine'
+    AND r.local_date >= DATE '2026-02-01' AND r.local_date < DATE '2026-03-01'
+  GROUP BY r.meter_id
+  ORDER BY value DESC
+  LIMIT 5
+)
+SELECT meter_id, value FROM machine_kwh ORDER BY meter_id
+"""
+
+[O5]
+sql = """
+SELECT sum(kwh) FILTER (WHERE local_date >= DATE '2026-03-01')
+     - sum(kwh) FILTER (WHERE local_date < DATE '2026-03-01') AS value
+FROM reading
+WHERE meter_id = 'dept_d'
+  AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-04-01'
+"""
+
+# Local start 00:00 to 04:45: the hour digits of local_start are 00 to 04.
+[O6]
+sql = """
+SELECT avg(kwh * 4) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2025-11-01' AND local_date < DATE '2025-12-01'
+  AND substr(local_start, 12, 2) < '05'
+"""
+
+# An order belongs to the local date of its first interval; no Hinge order crosses May's ends.
+[O7]
+sql = """
+SELECT sum(o.units) AS value
+FROM production_order o
+JOIN reading r ON r.meter_id = o.line_id AND r.ts_utc = o.start_utc
+WHERE o.product = 'Hinge'
+  AND o.line_id IN ('line_a1', 'line_a2', 'line_a3')
+  AND r.local_date >= DATE '2026-05-01' AND r.local_date < DATE '2026-06-01'
+"""
+
+[O8]
+sql = """
+SELECT sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'line_b2'
+  AND local_date >= DATE '2026-10-01' AND local_date < DATE '2026-11-01'
+  AND isodow(local_date) IN (6, 7)
+"""
+
+[O9]
+sql = """
+SELECT sum(kwh) FILTER (WHERE meter_id = 'site')
+     - sum(kwh) FILTER (WHERE meter_id IN ('dept_a', 'dept_b', 'dept_c', 'dept_d')) AS value
+FROM reading
+WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+  AND local_date >= DATE '2026-08-01' AND local_date < DATE '2026-09-01'
+"""
+
+[O10]
+sql = """
+WITH kwh AS (
+  SELECT meter_id, sum(kwh) AS kwh
+  FROM reading
+  WHERE meter_id IN ('site', 'dept_a', 'dept_b', 'dept_c', 'dept_d')
+    AND local_date >= DATE '2025-12-01' AND local_date < DATE '2026-01-01'
+  GROUP BY meter_id
+)
+SELECT d.meter_id, 100 * d.kwh / s.kwh AS value
+FROM kwh d, kwh s
+WHERE d.meter_id <> 'site' AND s.meter_id = 'site'
+ORDER BY d.meter_id
+"""
+
+[O11]
+sql = """
+SELECT count(*) FILTER (WHERE kwh * 4 > 1500) / 4 AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2026-05-01' AND local_date < DATE '2026-06-01'
+"""
+
+# Painting lines' kWh in intervals covered by a Hood order, over the Hood units spread over
+# those intervals, both cut to March 2026 local dates.
+[O12]
+sql = """
+SELECT sum(r.kwh) / sum(o.units / (epoch(o.end_utc - o.start_utc) / 900)) AS value
+FROM reading r
+JOIN production_order o
+  ON o.line_id = r.meter_id AND r.ts_utc >= o.start_utc AND r.ts_utc < o.end_utc
+WHERE o.product = 'Hood'
+  AND r.meter_id IN ('line_c1', 'line_c2')
+  AND r.local_date >= DATE '2026-03-01' AND r.local_date < DATE '2026-04-01'
+"""
+
+[O13]
+sql = """
+SELECT avg(day_kwh) AS value
+FROM (
+  SELECT local_date, sum(kwh) AS day_kwh
+  FROM reading
+  WHERE meter_id = 'line_c2'
+    AND local_date >= DATE '2026-04-01' AND local_date < DATE '2026-05-01'
+  GROUP BY local_date
+)
+"""
+
+# Weeks run Monday to Sunday in local dates; bucket_start is day_start of each week's
+# Monday, which is the day_start of the week's earliest reading.
+[O14]
+sql = """
+SELECT arg_min(day_start, ts_utc) AS bucket_start, sum(kwh) AS value
+FROM reading
+WHERE meter_id = 'site'
+  AND local_date >= DATE '2025-12-08' AND local_date < DATE '2026-01-19'
+GROUP BY local_date - CAST(isodow(local_date) - 1 AS INTEGER)
+ORDER BY min(ts_utc)
+"""
