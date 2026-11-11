@@ -76,7 +76,9 @@ The database is written to `data/plant.duckdb`, which is ignored by git.
   - `dataset_info(seed INTEGER, timezone VARCHAR, first_date DATE, end_date DATE)`, one row; `end_date` is exclusive and is the demo's "today".
 - `tests/conftest.py`, all session scope: `db_path`, a database for 2026-10-19 to 2026-11-01, which contains the autumn clock-change day; `con`, a read-only `duckdb.connect` on it (Task 4 replaces this with `open_db`); `full_db_path`, the default one-year database built once per test session, for the tests that need every question's period (Tasks 9, 10, 15).
 
-**Approach:** `random.Random(seed)` in Python, `zoneinfo` for Europe/Rome, time columns computed once per interval and reused for every meter. Machine kWh has a floor of 0.5 per interval and is rounded to 3 decimals. Each parent draws one margin in [0.03, 0.08] and reads `sum(children) * (1 + margin)` in every interval. Lines run different shifts, so two lines do not peak in the same interval. Rows go to a temporary CSV and are loaded with `read_csv`.
+**Approach:** `random.Random(seed)` in Python, `zoneinfo` for Europe/Rome, time columns computed once per interval and reused for every meter. Machine kWh has a floor of 0.5 per interval and is rounded to 3 decimals. Each parent draws one margin in [0.03, 0.08] and reads `sum(children) * (1 + margin)` in every interval. Lines run different shifts, so two lines do not peak in the same interval.
+
+**Load realism (the profile must look like a plant, not like noise):** each machine has a standby load and a working load; it works only while an order runs on its line, with a short start-up ramp and a duty cycle with noise, so line kWh follows production and energy per unit is meaningful. Lines run one, two or three shifts on weekdays, some run Saturday morning, none on Sunday. Night and Sunday consumption is standby only. Two plant closures have no orders: 2025-12-24 to 2026-01-06 and 2026-08-08 to 2026-08-23. Department-level unmetered load (the 3 to 8 percent margin) covers lighting and auxiliaries and needs no extra modelling. Solar follows a daylight bell curve whose height and length change with the season, scaled per day by a random cloud factor, and is zero at night. The battery charges around midday when solar is high and discharges in the early evening. None of this may break an invariant above: the 0.5 kWh floor, the per-parent constant margin, 15-minute order boundaries. Rows go to a temporary CSV and are loaded with `read_csv`.
 
 - [ ] **Step 1:** Write `tests/test_generator.py`:
 
@@ -91,6 +93,11 @@ def test_solar_nonnegative_battery_signed(con)    # min(solar) >= 0; battery has
 def test_band_matches_definition(con)             # sample rows: Sunday noon F3, Tuesday 10:00 F1, Saturday 10:00 F2
 def test_every_meter_has_every_interval(con)      # count per meter equal, no NULL kwh
 def test_no_orders_on_sunday(con)
+def test_load_follows_production(con)             # for line_a1: mean kWh of intervals inside an order > 2 x mean kWh of intervals outside any order
+def test_weekday_day_above_night_above_nothing(con) # site: mean kWh Tue 10:00-12:00 > mean kWh Tue 02:00-04:00 >= 41 * 0.5 * 0.9
+def test_sunday_is_standby(con)                   # site: total on Sunday 2026-10-25 (per interval mean) < 0.6 x Tuesday 2026-10-27
+def test_closure_has_no_orders(tmp_path)          # generate 2025-12-20..2026-01-10: no order overlaps 2025-12-24..2026-01-06
+def test_solar_zero_at_night_and_seasonal(tmp_path) # zero between 23:00 and 04:00 local; a June day total > a December day total (two short generated spans)
 def test_two_lines_peak_at_different_instants(con) # line_a1 and line_b1: argmax ts over the fixture differ
 ```
 
@@ -302,11 +309,17 @@ def test_messages_are_json_serialisable
 
 **Files:** Create `src/agentic_ems/benchmark/questions.toml`, `docs/review-log.md`, `tests/test_questions.py`. Delete `docs/golden-questions-draft.md` in the same commit. The draft's table "Error classes and what version 1 does with each" moves into `docs/golden.md` in Task 9. `docs/problem-classes.md` is ignored by git and is never committed or quoted.
 
-**Interfaces — Produces:** one table per question: `id` (H1.., C1.., M1.., O1.., U1..), `group` (`hierarchy`, `control`, `metric_definition`, `out_of_scope`, `unanswerable`), `text` (the full question with absolute dates, real meter names from the generator, and its output shape in words: the key columns and `value`), `keys` (subset of `meter_id`, `bucket_start`, `tariff_band`), `source` (`public standard`, `author, from practice`, or `error class Pn`), `mistake`. A `[[rejected]]` list holds dropped questions with their reason. `load_questions() -> list[Question]` lives in `scorer.py`'s neighbour `verify.py` (Task 9); this task only writes the file and its test.
+**Interfaces — Produces:** one table per question: `id` (H1.., C1.., M1.., O1.., U1..), `group` (`hierarchy`, `control`, `metric_definition`, `out_of_scope`, `unanswerable`), `ask` (the question in the words a person at the plant would type), `keys` (subset of `meter_id`, `bucket_start`, `tariff_band`), `source` (`public standard`, `author, from practice`, or `error class Pn`), `mistake`. A `[[rejected]]` list holds dropped questions with their reason. `load_questions() -> list[Question]` lives in `scorer.py`'s neighbour `verify.py` (Task 9); this task only writes the file and its test.
+
+**How `ask` is written.** As a person at the plant would type it, not as a specification: meter names as people say them (`the paint shop`, `line 2 in welding`, `Press 3`), never meter ids; dates the way people write them but absolute (`March 2026`, `the week of 12 October 2026`, `on 25/10/2026`); mixed registers across the set (a terse note, a full sentence, a question from a manager about cost, one from maintenance about a machine); the trap questions say the trap the way people do (`everything in welding added up`). No two questions share a template. The mix follows how often each type is asked, from the frequency column of the reviewed error-class list: department and plant totals, daily and monthly trends, band splits and department comparisons get the most questions. Read `docs/problem-classes.md` for that column only; do not copy any sentence from it.
+
+**What the model receives.** `text = ask + "\n\n" + shape_line(keys)`, where `shape_line` is one function in `verify.py` (Task 9; until then the test builds it the same way) that states the answer columns in a fixed sentence, for example `Answer with columns: meter_id, bucket_start, value.` The user's words are never edited to carry the format, and both arms get the same `text` byte for byte.
+
+**What may be claimed.** The questions are written to read like the ones plant staff ask and their types and frequencies come from an owner-reviewed list. They are not logs of real users, and `docs/golden.md` says so in those words.
 
 Every period lies inside 2025-11-01 to 2026-11-01. H19 and H20 have a defined correct answer decided by the owner. Any question whose correct outcome is a refusal (the draft's H21 and U-rows) is in the `unanswerable` group; a question that stays in `hierarchy` has rows as its answer. No question asks for an order. If `/eval-plan` later cuts a group, the cut questions move to `rejected` with that reason. `docs/review-log.md` records the date and which questions the owner read, changed and rejected.
 
-- [ ] **Step 1:** `tests/test_questions.py`: ids unique; every group present; every `keys` value in the closed set; every `text` contains the word `value`; every date in a text is inside the dataset, except in the `unanswerable` group; unanswerable has 3 to 8 questions.
+- [ ] **Step 1:** `tests/test_questions.py`: ids unique; every group present; every `keys` value in the closed set; no `ask` contains a meter id, the word `value` or a column name; no two `ask` strings share their first four words; every date in a text is inside the dataset, except in the `unanswerable` group; unanswerable has 3 to 8 questions.
 - [ ] **Step 2:** Write the files. **Step 3:** Test passes.
 - [ ] **Step 4:** Commit: "Add the reviewed question set" (why: the questions and their provenance are fixed before any model is run on them).
 

@@ -151,6 +151,11 @@ Approach A.
   `cost_eur` prices the plant's load at the tariff and ignores solar and battery. Questions
   about solar, battery or orders alone can be answered from the database but not through the
   semantic layer; they belong to the out-of-scope benchmark group (Open Question 7).
+- **Realistic load.** Machines draw a standby load when idle and a working load while an
+  order runs on their line, so consumption follows shifts, weekends, two plant closures and
+  production. Solar follows daylight and season; the battery charges at midday and
+  discharges in the evening. A flat or random profile would make trends, peaks and energy
+  per unit meaningless to a reader who knows plants.
 - **Reference date.** The dataset ends on a fixed date written in the database. The demo
   gives that date to the model as "today". Benchmark questions use absolute dates only.
 
@@ -253,6 +258,12 @@ questions (about 4, reported as counts, not percentages) ask for something the d
 does not exist or a date after the dataset ends; the correct outcome is a refusal. Every
 question uses absolute dates and declares its output shape: the key columns and one numeric
 value column. `/eval-plan` fixes the final count per group.
+
+**How the questions read.** Each question is written in the words a person at the plant
+would type: meter names as people say them, mixed registers, no shared template. The answer
+format is a fixed sentence appended after the question, identical for both arms, so the
+user's words never carry it. The questions are written to resemble real ones and are not
+logs of real users; the dataset card says so.
 
 **Where the questions come from.** The question types are the ones an energy management
 system is asked every day. A first list is drafted from public practice (energy performance
