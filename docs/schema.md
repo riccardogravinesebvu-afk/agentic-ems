@@ -22,8 +22,8 @@ The `run_sql` tool runs one query and returns its rows.
   raw readings.
 - Functions and catalog views that show the engine's settings, files or internals are not
   available: any function or view whose name starts with `duckdb_`, `pragma_` or `pg_`, and
-  `current_setting`, `which_secret`, `query` and `query_table`. The `information_schema`
-  views work.
+  `current_setting`, `which_secret`, `query`, `query_table` and
+  `json_execute_serialized_sql`. The `information_schema` views work.
 - The SQL dialect is DuckDB's. Engine errors are returned with the engine's message.
 
 ## Questions with no answer
@@ -215,12 +215,12 @@ own `meter_id` and do not add its machines. Summing the departments, lines or ma
 undercounts the parent by its 3 to 8 percent margin. When a question asks for a breakdown,
 return one row per meter of the requested level under the node (for example one row per
 machine of a department, from each machine's own meter) and do not add the rows together.
-Only the levels below a node's own level have meters under it. When a question names several meters to be added (for example two lines), add their own
-meters. Never add a meter to one of its ancestors, and never add a meter to itself: the
-ancestor's reading already contains the descendant's energy, so adding them counts that
-energy twice. The energy of a meter and one of its descendants taken together is the
-ancestor's own reading; for example a department together with one of its own lines is the
-department's meter alone.
+Only the levels below a node's own level have meters under it. When a question names
+several meters to be added (for example two lines), add their own meters. Never add a meter
+to one of its ancestors, and never add a meter to itself: the ancestor's reading already
+contains the descendant's energy, so adding them counts that energy twice. The energy of a
+meter and one of its descendants taken together is the ancestor's own reading; for example a
+department together with one of its own lines is the department's meter alone.
 
 **R3.** Peak demand is coincident: for each `ts_utc`, sum the `kwh` of the meters in scope and
 multiply by 4 to get kW, then take the maximum over the period. For a single meter this is
@@ -253,11 +253,14 @@ an error or infinity, and report it as null rather than zero.
 **R7.** The four metrics above read consumption meters only. Questions about plant, department,
 line or machine consumption, peak, cost or energy per unit never include the `solar` or
 `battery` meters. Cost prices the plant's load at the tariff and ignores solar and battery.
-Consumption, peak, cost and energy per unit are not defined for `solar` or `battery`, alone
-or added to consumption meters; such a question has no answer. Questions about generation or
-storage themselves, such as solar production, battery charge and discharge, or their share
-of the plant's load, are answered from those two meters' own readings, with the sign
-convention described above.
+The four metrics defined above (consumption, peak demand, cost and energy per unit) are
+metrics of consumption meters and are not defined for `solar` or `battery`, alone or added to
+consumption meters; such a question has no answer. Questions about generation or storage
+themselves are answered from those two meters' own readings, with the sign convention
+described above: solar production in kWh is the sum of the solar meter's `kwh`, peak solar
+output in kW is its largest interval `kwh` times 4, battery charge and discharge come from
+the negative and positive battery readings, and their share of the plant's load compares
+those sums with the site meter's.
 
 **R8.** `reading.ts_utc` is the UTC start of each 15-minute interval, with no time zone
 attached. Do not filter or group days, months or tariff bands on `ts_utc`, and do not convert

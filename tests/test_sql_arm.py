@@ -2,6 +2,7 @@ import duckdb
 import pytest
 import sqlglot
 
+from agentic_ems.benchmark import sql_arm
 from agentic_ems.benchmark.sql_arm import run_sql
 from agentic_ems.semantic import LimitError, RequestError, execute_limited
 
@@ -101,10 +102,18 @@ def test_information_schema_is_available(con):
     assert result.rows == [(9,)]
 
 
-def test_original_text_is_executed(con):
+def test_original_text_is_executed(con, monkeypatch):
     sql = "FROM meter SELECT count(*)"
     assert sqlglot.transpile(sql, read="duckdb", write="duckdb") != [sql]
+    executed = []
+
+    def spy(con, text, params=None):
+        executed.append(text)
+        return execute_limited(con, text, params)
+
+    monkeypatch.setattr(sql_arm, "execute_limited", spy)
     assert run_sql(con, sql).sql == sql
+    assert executed == [sql]
 
 
 def test_time_zone_values_can_be_returned(con):
