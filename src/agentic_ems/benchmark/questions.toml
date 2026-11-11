@@ -110,7 +110,7 @@ ask = "Welding line 1 and Painting line 2 run off the same transformer. What was
 keys = []
 source = "public standard"
 mistake = "Each line's own peak added (separate_peaks) instead of the peak of the two lines' summed load per interval."
-shape_note = "Period 2026-03-09 to 2026-03-16. Checked against the data: coincident peak 436.72 kW, separate peaks summed 473.77 kW."
+shape_note = "Period 2026-03-09 to 2026-03-16."
 
 # H11 = draft H11
 [[question]]
@@ -310,7 +310,7 @@ ask = "Day by day energy per unit on Stamping line 3, Monday 16 to Sunday 22 Feb
 keys = ["bucket_start"]
 source = "public standard"
 mistake = "Draft C6. The night shift (22:00 to 06:00) runs orders across midnight, so each order's units are split between two days by their share of its duration, not given to the day it started; Sunday 22 February has no units, so its row is null, not zero."
-shape_note = "Period 2026-02-16 to 2026-02-23, seven daily rows. Five Stamping line 3 orders that week cross local midnight."
+shape_note = "Period 2026-02-16 to 2026-02-23, seven daily rows."
 
 # M4 = draft C9. The draft asked for four hours; a period is a whole number of days, so the
 # question asks for one whole day at the finest grain.
@@ -451,7 +451,7 @@ ask = "How many hours in May 2026 was the plant drawing more than 1,500 kW?"
 keys = []
 source = "public standard"
 mistake = "A count of intervals above a threshold, on the site meter's interval kW."
-shape_note = "One value in hours: the number of 15-minute intervals in May 2026 with site kWh times 4 above 1500, divided by 4. Checked against the data: 152.25 hours above 1,500 kW in May 2026, maximum 2,014 kW."
+shape_note = "One value in hours: the number of 15-minute intervals in May 2026 with site kWh times 4 above 1500, divided by 4."
 
 # O12 = draft O12. Asked for one product so the answer has a single value.
 [[question]]

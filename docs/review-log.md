@@ -21,6 +21,9 @@
 - A second reader reviewed the whole set on the same day. As a result the asks of H2, H6, H11,
   H17, C6, M3, M4, M5, O2, O3, O10 and O13 were reworded, M3 moved to a line with a night
   shift, and the notes of H10, O7 and O11 were corrected.
+  Confirmed on the data: for H10 the coincident peak is clearly below the sum of the separate
+  peaks; for O11 the threshold is crossed during many hours; for M3 night-shift orders cross
+  midnight in the chosen week.
 
 ## Owner rewording
 
