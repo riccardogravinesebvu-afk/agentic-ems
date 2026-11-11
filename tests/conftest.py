@@ -6,7 +6,10 @@ import pytest
 from agentic_ems.generator import generate
 from agentic_ems.semantic import open_db
 
-os.environ["LANGFUSE_TRACING_ENABLED"] = "false"  # no test sends a trace, keys or not
+# No test sends a trace, keys or not.
+os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
+os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["LANGCHAIN_TRACING_V2"] = "false"  # the legacy name of the LangSmith switch
 
 
 @pytest.fixture(scope="session")

@@ -1,5 +1,9 @@
 import json
+import os
 import re
+import subprocess
+import sys
+from datetime import UTC, datetime
 
 import pytest
 from fakes import ScriptedChatModel, reply
@@ -8,6 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from agentic_ems.agent import (
     MODEL,
     ModelMismatch,
+    build_graph,
     make_model,
     render_rows,
     run_agent,
@@ -205,9 +210,10 @@ def test_make_model_settings(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     model = make_model(effort="high", max_tokens=4000)
     assert model.model == MODEL and model.max_retries == 0 and model.temperature is None
-    assert model.thinking == {"type": "adaptive"} and model.max_tokens == 4000 and model.effort == "high"
+    thinking = {"type": "adaptive", "display": "summarized"}
+    assert model.thinking == thinking and model.max_tokens == 4000 and model.effort == "high"
     payload = model._get_request_payload([HumanMessage("Hi")])
-    assert payload["output_config"] == {"effort": "high"} and payload["thinking"] == {"type": "adaptive"}
+    assert payload["output_config"] == {"effort": "high"} and payload["thinking"] == thinking
     assert payload["max_tokens"] == 4000 and "temperature" not in payload
 
 
@@ -218,6 +224,14 @@ def test_no_tracing_without_keys(monkeypatch):
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
     assert tracing_callbacks() == []
 
+    # A fresh interpreter, so nothing this session imported can hide a load of the Langfuse client.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("LANGFUSE_")}
+    script = (
+        "import sys; from agentic_ems.agent import tracing_callbacks; "
+        "assert tracing_callbacks() == []; assert 'langfuse.langchain' not in sys.modules, 'loaded'"
+    )
+    subprocess.run([sys.executable, "-c", script], env=env, check=True)
+
 
 def test_messages_are_json_serialisable(sem):
     record, _ = run(sem, reply(("query_metric", BAD)), reply(("query_metric", GOOD)), reply(text="Done."))
@@ -225,9 +239,56 @@ def test_messages_are_json_serialisable(sem):
     assert roles == ["system", "human", "ai", "tool", "ai", "tool", "ai"]
     json.dumps(record.calls)
 
+    # A real response: content is a block list, and provider metadata may hold types JSON lacks.
+    blocks = reply(("query_metric", GOOD))
+    blocks.content = [
+        {"type": "thinking", "thinking": "One query by department.", "signature": "sig"},
+        {"type": "text", "text": "Querying."},
+        {"type": "tool_use", "id": blocks.tool_calls[0]["id"], "name": "query_metric", "input": GOOD},
+    ]
+    blocks.response_metadata["created"] = datetime(2026, 11, 11, 9, 30, tzinfo=UTC)
+    record, _ = run(sem, blocks, reply(text="Done."))
+    first = json.loads(json.dumps(record.messages))[2]
+    assert [b["type"] for b in first["content"]] == ["thinking", "text", "tool_use"]
+    assert first["response_metadata"]["created"] == "2026-11-11 09:30:00+00:00"
+
 
 def test_on_text_streams_the_reply_text(sem):
     texts: list[str] = []
     record, _ = run(sem, reply(("query_metric", GOOD), text="Looking."), reply(text="Done."), on_text=texts.append)
     assert record.final == "rows" and len(record.rows) == 4  # the query ran in LangGraph's worker thread
     assert re.sub(r"\s", "", "".join(texts)) == "Looking.Done."
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        [reply(*[("query_metric", BAD)] * 5)],  # five calls in one message
+        [reply(*[("query_metric", BAD)] * 3), reply(("query_metric", BAD), ("query_metric", GOOD))],  # 3 then 2
+        [reply(("refuse", {"reason": "no data"}), ("query_metric", GOOD))],  # a call after refuse
+        [reply(("query_metric", GOOD), stop_reason="refusal")],  # provider refusal with calls present
+        [reply(("query_metric", GOOD), stop_reason="max_tokens")],  # cut off with calls present
+    ],
+)
+def test_calls_not_run_end_the_run(sem, script):
+    # A call is left unrun only when the run ends there, so no model call follows and no tool_use needs a result.
+    # The fake asserts that every call of the previous response has a result before each model call.
+    model = ScriptedChatModel(script=[*script, reply(text="never sent")])
+    record = run_agent(model, sem, Q)
+    assert len(model.received) == len(script) and len(model.script) == 1
+    assert record.final in ("none", "refusal")
+
+
+def test_refuse_without_reason_is_a_refusal(sem):
+    record, _ = run(sem, reply(("refuse", {})))
+    assert record.final == "refusal" and record.refusal_reason == ""
+
+
+def test_instructions_state_the_loop_limit(con, catalog, sem):
+    assert "You have 4 tool calls in total." in sem.system[0]["text"]
+    three = semantic_arm(con, catalog, max_tool_calls=3)
+    assert "You have 3 tool calls in total." in three.system[0]["text"]
+    record = run_agent(ScriptedChatModel(script=[reply(*[("query_metric", BAD)] * 4)]), three, Q, max_tool_calls=3)
+    assert len(record.calls) == 3 and record.cause == "max_tool_calls"
+    with pytest.raises(ValueError, match="3 tool calls"):
+        build_graph(ScriptedChatModel(script=[]), three)

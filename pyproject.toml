@@ -23,6 +23,7 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = [
+    "error",
     # langsmith, a dependency of langchain-core, calls a function Python 3.14 deprecates.
     "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:langsmith",
 ]

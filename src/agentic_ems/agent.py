@@ -6,6 +6,7 @@ calls, the instructions and the way a run ends are the same code for both.
 
 import csv
 import io
+import json
 import operator
 import os
 import re
@@ -37,10 +38,11 @@ from agentic_ems.semantic import (
 )
 
 MODEL = "claude-opus-5-5"
+MAX_TOOL_CALLS = 4
 USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 INSTRUCTIONS = (
     "You answer questions about the energy data of one manufacturing plant. "
-    "You have 4 tool calls in total. The rows of your last successful {exec_tool} call are your answer. "
+    "You have {max_tool_calls} tool calls in total. The rows of your last successful {exec_tool} call are your answer. "
     "If the question cannot be answered from the data, call refuse with the reason instead of returning rows. "
     "Do not ask the user questions."
 )
@@ -67,6 +69,7 @@ class Arm:
     tools: list[dict]
     exec_tool: str
     execute: Callable[[dict], ToolResult]
+    max_tool_calls: int = MAX_TOOL_CALLS  # the count its instructions state
 
 
 @dataclass
@@ -97,7 +100,7 @@ def make_model(*, model: str = MODEL, effort: str, max_tokens: int) -> ChatAnthr
         max_retries=0,
         max_tokens=max_tokens,
         effort=effort,  # type: ignore[arg-type]
-        thinking={"type": "adaptive"},
+        thinking={"type": "adaptive", "display": "summarized"},  # transcripts keep the reasoning summary
     )
 
 
@@ -111,9 +114,9 @@ def render_rows(columns: list[str], rows: list[tuple], max_rows: int = 50) -> st
 
 
 def make_arm(name: str, exec_tool: dict, context: str, con, run: Callable[[Any, dict], QueryResult],
-             today: str | None = None) -> Arm:
+             today: str | None = None, max_tool_calls: int = MAX_TOOL_CALLS) -> Arm:
     """The parts both arms share: instructions, refuse tool, cache breakpoint, cursor and rendering."""
-    instructions = INSTRUCTIONS.format(exec_tool=exec_tool["name"]) + (f" Today is {today}." if today else "")
+    instructions = INSTRUCTIONS.format(exec_tool=exec_tool["name"], max_tool_calls=max_tool_calls) + (f" Today is {today}." if today else "")
     system: list[dict] = [
         {"type": "text", "text": instructions},
         {"type": "text", "text": context, "cache_control": {"type": "ephemeral"}},
@@ -125,10 +128,10 @@ def make_arm(name: str, exec_tool: dict, context: str, con, run: Callable[[Any, 
             result = run(cursor, args)
         return ToolResult(True, render_rows(result.columns, result.rows), result.columns, result.rows, result.sql)
 
-    return Arm(name, system, [exec_tool, REFUSE_TOOL], exec_tool["name"], execute)
+    return Arm(name, system, [exec_tool, REFUSE_TOOL], exec_tool["name"], execute, max_tool_calls)
 
 
-def semantic_arm(con, catalog: Catalog, say_today: bool = False) -> Arm:
+def semantic_arm(con, catalog: Catalog, say_today: bool = False, max_tool_calls: int = MAX_TOOL_CALLS) -> Arm:
     tool = {
         "name": "query_metric",
         "description": "Run one metric request against the plant data and return its rows.",
@@ -136,7 +139,8 @@ def semantic_arm(con, catalog: Catalog, say_today: bool = False) -> Arm:
     }
     context = catalogue_text(catalog) + "\n\n" + meter_tree_text(catalog)
     today = catalog.end_date.isoformat() if say_today else None
-    return make_arm("semantic", tool, context, con, lambda cursor, args: query(args, cursor, catalog), today)
+    return make_arm("semantic", tool, context, con, lambda cursor, args: query(args, cursor, catalog), today,
+                    max_tool_calls)
 
 
 class State(TypedDict):
@@ -144,7 +148,9 @@ class State(TypedDict):
     calls: Annotated[list[dict], operator.add]  # one per executed tool call: name, args, result; its length is the count
 
 
-def build_graph(model: BaseChatModel, arm: Arm, max_tool_calls: int = 4):
+def build_graph(model: BaseChatModel, arm: Arm, max_tool_calls: int = MAX_TOOL_CALLS):
+    if max_tool_calls != arm.max_tool_calls:
+        raise ValueError(f"the arm's instructions state {arm.max_tool_calls} tool calls, the loop allows {max_tool_calls}")
     bound = model.bind_tools(arm.tools)
     system = SystemMessage(arm.system)  # type: ignore[arg-type]
 
@@ -201,11 +207,11 @@ def _message_dict(message: BaseMessage) -> dict:
         out |= {"tool_calls": message.tool_calls, "response_metadata": message.response_metadata}
     if isinstance(message, ToolMessage):
         out |= {"tool_call_id": message.tool_call_id, "status": message.status}
-    return out
+    return json.loads(json.dumps(out, default=str))  # plain JSON types; provider extras such as datetimes become text
 
 
 def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model: str = MODEL,
-              max_tool_calls: int = 4, callbacks: list | None = None,
+              max_tool_calls: int = MAX_TOOL_CALLS, callbacks: list | None = None,
               on_text: Callable[[str], None] | None = None) -> RunRecord:
     graph = build_graph(model, arm, max_tool_calls)
     start = {"messages": [HumanMessage(question)], "calls": []}
@@ -241,6 +247,7 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
     if stop_reason in ("refusal", "max_tokens"):  # the graph ends on such a response, so it is the last
         cause = "provider_refusal" if stop_reason == "refusal" else "max_tokens"
     elif calls and calls[-1]["name"] == "refuse":
+        # A refuse call without a reason still ends the run as a refusal, with an empty reason.
         final, refusal_reason = "refusal", str(calls[-1]["args"].get("reason", ""))
     elif successes:
         final = "rows"

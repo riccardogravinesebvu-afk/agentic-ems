@@ -10,7 +10,7 @@ import duckdb
 import sqlglot
 from sqlglot import exp
 
-from agentic_ems.agent import Arm, make_arm
+from agentic_ems.agent import MAX_TOOL_CALLS, Arm, make_arm
 from agentic_ems.semantic import (
     Catalog,
     QueryResult,
@@ -72,10 +72,11 @@ def _run_tool(con, args: dict) -> QueryResult:
     return run_sql(con, args["sql"])
 
 
-def sql_arm(con, catalog: Catalog, schema_md: str) -> Arm:
+def sql_arm(con, catalog: Catalog, schema_md: str, max_tool_calls: int = MAX_TOOL_CALLS) -> Arm:
     tool = {
         "name": "run_sql",
         "description": "Run one read-only SQL query against the plant database and return its rows.",
         "input_schema": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]},
     }
-    return make_arm("sql", tool, schema_md + "\n\n" + meter_tree_text(catalog), con, _run_tool)
+    context = schema_md + "\n\n" + meter_tree_text(catalog)
+    return make_arm("sql", tool, context, con, _run_tool, max_tool_calls=max_tool_calls)
