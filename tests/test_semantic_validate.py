@@ -8,6 +8,8 @@ from agentic_ems.semantic import (
     LEVELS,
     METRICS,
     RULES,
+    Catalog,
+    Meter,
     MetricRequest,
     RequestError,
     catalogue_text,
@@ -53,13 +55,17 @@ def test_generation_meter_is_rejected(catalog):
 
 def test_breakdown_not_below_node(catalog):
     rejects(catalog, "line_a1", "department", node="line_a1", breakdown="department")
-    rejects(catalog, "line", node="line_a1", breakdown="line")
-    rejects(catalog, "site", breakdown="site")
+    rejects(catalog, "not below", node="line_a1", breakdown="line")
+    rejects(catalog, "not below", breakdown="site")
+    levelless = Catalog({"x": Meter("x", "X", None, None, "consumption")}, PERIOD["start"], PERIOD["end"])
+    with pytest.raises(RequestError, match="no level"):
+        validate(request(node="x", breakdown="line"), levelless)
 
 
 def test_unknown_meter(catalog):
     rejects(catalog, "unknown meter", "dept_z", node="dept_z")
     rejects(catalog, "unknown meter", "dept_z", meters=["dept_a", "dept_z"])
+    rejects(catalog, "unknown meter", node="")
 
 
 def test_node_and_meters_together(catalog):
@@ -71,6 +77,7 @@ def test_period_outside_dataset(catalog):
     rejects(catalog, message, start=date(2026, 10, 18), end=date(2026, 10, 20))
     rejects(catalog, message, start=date(2026, 10, 30), end=date(2026, 11, 2))
     rejects(catalog, message, start=date(2026, 12, 1), end=date(2026, 12, 5))
+    rejects(catalog, message, start=date(2026, 10, 1), end=date(2026, 10, 5))
 
 
 def test_start_not_before_end(catalog):

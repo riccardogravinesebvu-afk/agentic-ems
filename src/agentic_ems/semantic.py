@@ -113,7 +113,7 @@ def validate(request: MetricRequest, catalog: Catalog) -> None:
         raise RequestError("a breakdown applies to a node, not to a list of meters")
     if request.meters == []:
         raise RequestError("meters must name at least one meter")
-    scope = request.meters if request.meters is not None else [request.node or "site"]
+    scope = request.meters if request.meters is not None else [request.node if request.node is not None else "site"]
 
     for meter_id in scope:
         if meter_id not in catalog.meters:
@@ -133,7 +133,9 @@ def validate(request: MetricRequest, catalog: Catalog) -> None:
                 )
 
     level = catalog.meters[scope[0]].level
-    if request.breakdown is not None and LEVELS.index(request.breakdown) <= LEVELS.index(str(level)):
+    if level is None:
+        raise RequestError(f"meter {scope[0]!r} has no level in the meter table, so it cannot be a node")
+    if request.breakdown is not None and LEVELS.index(request.breakdown) <= LEVELS.index(level):
         raise RequestError(
             f"breakdown {request.breakdown!r} is not below node {scope[0]!r}, which is at level {level!r}"
         )
