@@ -146,3 +146,35 @@ def test_write_readme_fails_clearly_without_the_file_or_the_markers(tmp_path):
         with pytest.raises(SystemExit, match="markers"):
             write_readme(readme, "block")
         assert readme.read_text() == text
+
+
+def third_arm() -> dict:
+    extra = copy.deepcopy(FIXTURE)
+    extra["versions"]["prompts_sha256"] = {"sql_schema_only": "0" * 64}
+    extra["runs"] = [{**run, "arm": "sql_schema_only"} for run in extra["runs"] if run["arm"] == "sql"]
+    return extra
+
+
+def test_a_later_run_adds_its_arm_to_the_block(tmp_path):
+    from agentic_ems.benchmark.report import load_results
+
+    (tmp_path / "schema_only").mkdir()
+    (tmp_path / "results.json").write_text(json.dumps(FIXTURE))
+    (tmp_path / "schema_only" / "results.json").write_text(json.dumps(third_arm()))
+    merged = load_results(tmp_path)
+    block = build_block(merged)
+    assert "sql 3 of 8 runs, sql_schema_only 3 of 8 runs" in block
+    assert block.count("**Difference between arms**") == 3 and "sql minus sql_schema_only" in block
+    assert merged["budget_eur"] == 2 * FIXTURE["budget_eur"] and len(merged["runs"]) == 24
+    assert merged["runs"][-1]["transcript"].startswith("schema_only/runs/")
+    assert json.loads((tmp_path / "results.json").read_text()) == FIXTURE
+
+
+@pytest.mark.parametrize("change", ["scorer_sha256", "questions_sha256", "model", "effort", "seed"])
+def test_runs_that_differ_are_not_reported_together(change):
+    from agentic_ems.benchmark.report import merge
+
+    extra = third_arm()
+    extra["versions"][change] = "other"
+    with pytest.raises(SystemExit, match=change):
+        merge(FIXTURE, extra, "schema_only")

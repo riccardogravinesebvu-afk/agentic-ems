@@ -11,7 +11,13 @@ import sqlglot
 from sqlglot import exp
 
 from agentic_ems.agent import MAX_TOOL_CALLS, Arm, make_arm
-from agentic_ems.semantic import QueryResult, RequestError, execute_limited
+from agentic_ems.semantic import (
+    Catalog,
+    QueryResult,
+    RequestError,
+    execute_limited,
+    meter_tree_text,
+)
 
 # Backstop: statement nodes that sqlglot can place inside a query.
 NOT_READ = (
@@ -66,10 +72,29 @@ def _run_tool(con, args: dict) -> QueryResult:
     return run_sql(con, args["sql"])
 
 
-def sql_arm(con, schema_md: str, max_tool_calls: int = MAX_TOOL_CALLS) -> Arm:
+SCHEMA_ONLY = "sql_schema_only"
+
+
+def schema_only_md(con, catalog: Catalog, schema_md: str) -> str:
+    """The context of the arm that gets no rules: how the tool runs, then tables, columns and types read from the
+    database and the meter tree. Nothing else of docs/schema.md: no column meanings, no metric definitions, no rules."""
+    tool = schema_md[schema_md.index("## How queries run"):schema_md.index("## Questions with no answer")]
+    lines = ["# Plant database schema", "", "The database is DuckDB.", "", tool.rstrip(), "", "## Tables and columns"]
+    columns = con.execute(
+        "SELECT table_name, column_name, data_type FROM information_schema.columns "
+        "WHERE table_schema = 'main' ORDER BY table_name, ordinal_position"
+    ).fetchall()
+    for table in dict.fromkeys(row[0] for row in columns):
+        lines += ["", f"### {table}", ""] + [f"- `{table}.{name}` {kind}" for t, name, kind in columns if t == table]
+    lines += ["", "## The meter tree", "", "Each line shows the meter id, its name and its level (or its kind).", "",
+              "```", meter_tree_text(catalog), "```"]
+    return "\n".join(lines) + "\n"
+
+
+def sql_arm(con, schema_md: str, max_tool_calls: int = MAX_TOOL_CALLS, name: str = "sql") -> Arm:
     tool = {
         "name": "run_sql",
         "description": "Run one read-only SQL query against the plant database and return its rows.",
         "input_schema": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]},
     }
-    return make_arm("sql", tool, schema_md, con, _run_tool, max_tool_calls=max_tool_calls)
+    return make_arm(name, tool, schema_md, con, _run_tool, max_tool_calls=max_tool_calls)

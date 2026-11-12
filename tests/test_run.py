@@ -430,3 +430,16 @@ def test_main_rejects_missing_or_inconsistent_arguments(fake_main, change):
     with pytest.raises(SystemExit):
         run_module.main(argv)
     assert "repeats" not in fake_main
+
+
+def test_schema_only_arm_runs_alone_into_its_own_folder(fake_main, tmp_path):
+    argv = [*ARGV[:ARGV.index("--arm")], "--arm", "sql_schema_only", "--out-dir", str(tmp_path / "schema_only")]
+    assert run_module.main(argv) == 0
+    assert fake_main["arms"] == ["sql_schema_only"] and fake_main["out_dir"] == tmp_path / "schema_only"
+
+
+def test_main_never_overwrites_a_recorded_run(fake_main, tmp_path):
+    (tmp_path / "results.json").write_text("{}")
+    with pytest.raises(SystemExit):
+        run_module.main(ARGV)
+    assert "repeats" not in fake_main

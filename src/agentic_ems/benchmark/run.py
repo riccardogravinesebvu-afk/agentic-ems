@@ -36,7 +36,7 @@ from agentic_ems.agent import (
     tracing_callbacks,
 )
 from agentic_ems.benchmark import scorer
-from agentic_ems.benchmark.sql_arm import sql_arm
+from agentic_ems.benchmark.sql_arm import SCHEMA_ONLY, schema_only_md, sql_arm
 from agentic_ems.benchmark.verify import (
     QUESTIONS_FILE,
     Question,
@@ -324,7 +324,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, required=True)
     parser.add_argument("--max-attempts", type=int, required=True, help="attempts per run before the benchmark stops")
     parser.add_argument("--run-timeout-s", type=float, required=True, help="the wall-clock limit of one run")
-    parser.add_argument("--arm", choices=["semantic", "sql"])
+    parser.add_argument("--arm", choices=["semantic", "sql", SCHEMA_ONLY],
+                        help=f"one arm only; {SCHEMA_ONLY} runs only when named and needs its own --out-dir")
+    parser.add_argument("--out-dir", type=Path, help="where the run is written; default results/")
     parser.add_argument("--only", nargs="+", metavar="ID")
     args = parser.parse_args(argv)
     if args.min_repeats < 1:  # fewer repeats than the minimum is a pilot: the block shows counts only
@@ -344,16 +346,22 @@ def main(argv: list[str] | None = None) -> int:
     cursor = con.cursor()
     catalog = load_catalog(cursor)
     [(seed,)] = cursor.execute("SELECT seed FROM dataset_info").fetchall()
-    arms = [semantic_arm(con, catalog), sql_arm(con, (ROOT / "docs" / "schema.md").read_text())]
-    arms = [arm for arm in arms if args.arm in (None, arm.name)]
+    out_dir = args.out_dir or RESULTS
+    if (out_dir / "results.json").exists():  # a recorded run is never overwritten
+        parser.error(f"{out_dir} already holds a run; pass another --out-dir")
+    schema_md = (ROOT / "docs" / "schema.md").read_text()
+    if args.arm == SCHEMA_ONLY:
+        arms = [sql_arm(con, schema_only_md(cursor, catalog, schema_md), name=SCHEMA_ONLY)]
+    else:
+        arms = [arm for arm in (semantic_arm(con, catalog), sql_arm(con, schema_md)) if args.arm in (None, arm.name)]
     results = run_benchmark(
         make_model(effort=args.effort, max_tokens=args.max_tokens), questions, load_truth(cursor), arms,
         repeats=args.repeats, budget_eur=args.budget_eur, eur_per_usd=args.eur_per_usd,
         min_repeats=args.min_repeats, first_repeat_eur=args.first_repeat_eur, effort=args.effort, seed=seed,
-        run_timeout_s=args.run_timeout_s, max_attempts=args.max_attempts, out_dir=RESULTS,
+        run_timeout_s=args.run_timeout_s, max_attempts=args.max_attempts, out_dir=out_dir,
         callbacks=tracing_callbacks(),
     )
-    print(f"{len(results['runs'])} runs written to {RESULTS}")
+    print(f"{len(results['runs'])} runs written to {out_dir}")
     if results.get("stopped"):
         print(f"Stopped early, at {results['stopped']}")
     if results["failure"]:

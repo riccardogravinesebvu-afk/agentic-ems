@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import duckdb
 import pytest
 import sqlglot
@@ -148,3 +150,17 @@ def test_row_limit_applies(con):
     assert len(run_sql(con, "SELECT * FROM range(5000)").rows) == 5000
     with pytest.raises(LimitError, match="5,000"):
         run_sql(con, "SELECT * FROM reading")
+
+
+def test_schema_only_context_has_the_schema_and_no_rule(con):
+    from agentic_ems.benchmark.sql_arm import schema_only_md
+    from agentic_ems.semantic import RULES, load_catalog
+
+    schema_md = (Path(__file__).parents[1] / "docs" / "schema.md").read_text()
+    text = schema_only_md(con, load_catalog(con), schema_md)
+    columns = con.execute("SELECT table_name, column_name FROM information_schema.columns").fetchall()
+    assert columns and all(f"`{table}.{column}`" in text for table, column in columns)
+    assert "line_b2 (Welding line 2, line)" in text and "Only SELECT queries run" in text
+    assert not any(f"**{rule}.**" in text for rule in RULES)
+    for phrase in ("already includes", "coincident", "kwh * 4", "NULLIF", "local_date >=", "3 and 8", "has no answer"):
+        assert phrase not in text

@@ -5,6 +5,7 @@ Run with: uv run python -m agentic_ems.benchmark.report --write-readme
 """
 
 import argparse
+import itertools
 import json
 import math
 import random
@@ -113,8 +114,7 @@ def build_block(results: dict) -> str:
         rs = [r for r in of(arm) if r["question"] == qid]
         return sum(r["correct"] for r in rs) / len(rs)
 
-    if enough and len(arms) == 2:
-        a, b = arms
+    for a, b in itertools.combinations(arms, 2) if enough else ():
         lines += ["", f"**Difference between arms**, {a} minus {b}, in accuracy points, paired by question:", "",
                   "| Group | Difference | 95% interval |", "|---|---|---|"]
         for group in groups:
@@ -148,6 +148,37 @@ def build_block(results: dict) -> str:
     return "\n".join(lines)
 
 
+SAME = ("seed", "questions_sha256", "scorer_sha256", "model", "effort")
+
+
+def merge(base: dict, extra: dict, subdir: str) -> dict:
+    """Add the arms of a later run, kept in results/<subdir>/, to the first run's results."""
+    for key in SAME:
+        if base["versions"][key] != extra["versions"][key]:
+            raise SystemExit(f"results/{subdir} cannot be reported with results/: {key} differs")
+    for key in ("questions", "repeats", "min_repeats", "eur_per_usd"):
+        if base[key] != extra[key]:
+            raise SystemExit(f"results/{subdir} cannot be reported with results/: {key} differs")
+    if set(base["versions"]["prompts_sha256"]) & set(extra["versions"]["prompts_sha256"]):
+        raise SystemExit(f"results/{subdir} repeats an arm of results/")
+    merged = dict(base)
+    merged["versions"] = {**base["versions"], "prompts_sha256": {**base["versions"]["prompts_sha256"],
+                                                                 **extra["versions"]["prompts_sha256"]}}
+    merged["runs"] = base["runs"] + [{**run, "transcript": f"{subdir}/{run['transcript']}"} for run in extra["runs"]]
+    for key in ("budget_eur", "unscored_eur", "attempts_still_running"):
+        merged[key] = base[key] + extra[key]
+    for key in ("failure", "stopped"):
+        merged[key] = "; ".join(filter(None, (base[key], extra[key]))) or None
+    return merged
+
+
+def load_results(results_dir: Path) -> dict:
+    results = json.loads((results_dir / "results.json").read_text())
+    for path in sorted(results_dir.glob("*/results.json")):
+        results = merge(results, json.loads(path.read_text()), path.parent.name)
+    return results
+
+
 def write_readme(readme: Path, block: str) -> None:
     if not readme.exists():
         raise SystemExit(f"{readme} does not exist; it needs the lines {START} and {END} around the results block")
@@ -159,10 +190,10 @@ def write_readme(readme: Path, block: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate the README results block from results/results.json.")
+    parser = argparse.ArgumentParser(description="Generate the README results block from results/results.json and any results/<name>/results.json.")
     parser.add_argument("--write-readme", action="store_true", help="replace the marked block in README.md")
     args = parser.parse_args(argv)
-    block = build_block(json.loads((ROOT / "results" / "results.json").read_text()))
+    block = build_block(load_results(ROOT / "results"))
     if args.write_readme:
         write_readme(ROOT / "README.md", block)
     else:
