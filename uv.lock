@@ -25,6 +25,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx2" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -45,6 +46,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx2", specifier = "==2.16.0" },
     { name = "mypy" },
     { name = "pytest", specifier = "==9.2.0" },
     { name = "ruff" },

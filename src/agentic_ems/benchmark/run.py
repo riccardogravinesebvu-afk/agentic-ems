@@ -85,6 +85,7 @@ class Meter(BaseCallbackHandler):
         self.eur_per_usd = eur_per_usd
         self.cost = 0.0  # written only by the attempt's thread
         self.abandoned = False
+        self.thread: threading.Thread | None = None
 
     def on_chat_model_start(self, serialized: dict, messages: list, **kwargs) -> None:
         if self.abandoned:
@@ -131,7 +132,7 @@ def _within(limit_s: float, fn: Callable[[], RunRecord], meter: Meter) -> RunRec
         except Exception as exc:  # noqa: BLE001 - re-raised in the calling thread below
             out["error"] = exc
 
-    thread = threading.Thread(target=target, name="benchmark-attempt", daemon=True)
+    thread = meter.thread = threading.Thread(target=target, name="benchmark-attempt", daemon=True)
     thread.start()
     thread.join(limit_s)
     if thread.is_alive():
@@ -178,9 +179,11 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
         "runs": [],
         "unscored_eur": 0.0,  # spent on attempts that produced no scored run
         "stopped": None,
+        "attempts_still_running": 0,  # abandoned attempts still alive after the final wait
         "failure": IN_PROGRESS,
     }
     unscored: list[Meter] = []  # a meter of an abandoned attempt can still grow when its late response arrives
+    run_meters: list[list[Meter]] = []  # per scored run, the meters of all its attempts
 
     def save() -> None:
         results["unscored_eur"] = sum(meter.cost for meter in unscored)
@@ -192,11 +195,16 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
     errors = (out_dir / "errors.jsonl").open("a")
     mismatches = 0
 
-    def attempt(q: Question, arm: Arm, repeat: int) -> tuple[RunRecord, int, Meter]:
-        """The run's record, retry count and spend. Harness failures are logged and retried, never scored."""
+    def attempt(q: Question, arm: Arm, repeat: int) -> tuple[RunRecord, int, list[Meter]]:
+        """The run's record, retry count and the meters of its attempts, the scored one last.
+
+        Harness failures are logged and retried, never scored.
+        """
         nonlocal mismatches
+        meters: list[Meter] = []
         for retries in range(max_attempts):
             meter = Meter(eur_per_usd)
+            meters.append(meter)
             started = time.monotonic()
             try:
                 record = _within(run_timeout_s, functools.partial(
@@ -216,11 +224,12 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
                 if retries + 1 < max_attempts:
                     sleep(random.uniform(0, min(BACKOFF_CAP_S, BACKOFF_BASE_S * 2**retries)))  # full jitter
                 continue
-            except Exception:
+            except BaseException:  # an error that ends the benchmark, or an interrupt such as Ctrl-C
+                meter.abandoned = True
                 unscored.append(meter)
                 raise
             mismatches = 0
-            return record, retries, meter
+            return record, retries, meters
         raise Abort(f"{q.id} in the {arm.name} arm, repeat {repeat}, failed {max_attempts} attempts")
 
     failure: str | None = IN_PROGRESS
@@ -228,12 +237,22 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
     try:
         save()
         for repeat, q, arm in itertools.product(range(1, repeats + 1), questions, arms):
-            largest = max((run["cost_eur"] for run in results["runs"]), default=first_run_eur)
+            if q is questions[0] and arm is arms[0]:
+                # One more repeat must fit: estimated by the first repeat's figure, then the mean spend per repeat.
+                estimate = first_repeat_eur if repeat == 1 else spent() / (repeat - 1)
+                if spent() + estimate > budget_eur:
+                    results["stopped"] = (f"the budget: {spent():.2f} EUR spent and one more repeat may cost "
+                                          f"{estimate:.2f} EUR, over the {budget_eur:.2f} EUR budget")
+                    break
+            # The hard stop: the costliest run so far, failed attempts included, must fit.
+            largest = max((sum(m.cost for m in ms) for ms in run_meters), default=first_run_eur)
             if spent() + largest > budget_eur:
                 results["stopped"] = (f"the budget: {spent():.2f} EUR spent and the next run may cost {largest:.2f} "
                                       f"EUR, over the {budget_eur:.2f} EUR budget")
                 break
-            record, retries, meter = attempt(q, arm, repeat)
+            record, retries, meters = attempt(q, arm, repeat)
+            run_meters.append(meters)
+            meter = meters[-1]
             result = scorer.score(q, truths[q.id], record)
             name = f"{q.id}-{arm.name}-{repeat}.json"
             _dump(run_dir / name, {
@@ -254,11 +273,17 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
         failure = None
     except Abort as exc:
         failure = str(exc)
-    except Exception as exc:
-        failure = f"{type(exc).__name__}: {exc}"
+    except BaseException as exc:
+        failure = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
         raise
     finally:
         errors.close()
+        # Wait a bounded time for abandoned attempts, so a late billed response is priced into the file.
+        deadline = time.monotonic() + run_timeout_s
+        for meter in unscored:
+            if meter.thread is not None:
+                meter.thread.join(max(0.0, deadline - time.monotonic()))
+        results["attempts_still_running"] = sum(m.thread is not None and m.thread.is_alive() for m in unscored)
         if failure is None and results["runs"] and not any(run["cache_read_input_tokens"] for run in results["runs"]):
             failure = "neither arm ever read from cache"
         results["failure"] = failure
@@ -283,8 +308,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--arm", choices=["semantic", "sql"])
     parser.add_argument("--only", nargs="+", metavar="ID")
     args = parser.parse_args(argv)
-    if args.min_repeats < 1 or args.repeats < args.min_repeats:
-        parser.error("--min-repeats must be at least 1 and --repeats at least --min-repeats")
+    if args.min_repeats < 1:  # fewer repeats than the minimum is a pilot: the block shows counts only
+        parser.error("--min-repeats must be at least 1")
     if args.max_attempts < 1:
         parser.error("--max-attempts must be at least 1")
 

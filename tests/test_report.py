@@ -22,7 +22,7 @@ EXPECTED = """\
 
 2 of 2 repeats completed, 4 questions, model claude-opus-5-5, effort high.
 
-Spend: 0.22 EUR in scored runs and 0.01 EUR in attempts that were not scored, of a budget of 20.00 EUR.
+Spend: 0.22 EUR in the runs the table counts, 0.00 EUR in runs of an incomplete repeat and 0.01 EUR in attempts that were not scored, of a budget of 20.00 EUR.
 
 | Arm | Group | Correct | Refusals | Known wrong | Other wrong | No answer | Cost EUR | EUR per correct | Earlier call correct |
 |---|---|---|---|---|---|---|---|---|---|
@@ -101,6 +101,7 @@ def test_an_incomplete_repeat_is_not_counted():
     block = build_block(results)
     assert "1 of 2 repeats completed" in block and f"{BELOW_MINIMUM} 2 repeats" in block
     assert "stopped" not in block
+    assert "0.11 EUR in the runs the table counts, 0.09 EUR in runs of an incomplete repeat" in block
     results["stopped"] = "the budget: example"
     assert "The benchmark stopped early, at the budget: example." in build_block(results)
     assert "semantic 0 of 4 runs, sql 3 of 4 runs" in block

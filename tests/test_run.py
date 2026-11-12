@@ -122,17 +122,33 @@ def test_runs_are_ordered_by_repeat(bench, tmp_path):
     assert results["failure"] is None and results["stopped"] is None and results["unscored_eur"] == 0
 
 
-def test_budget_is_checked_before_every_run(bench, tmp_path):
+def test_budget_is_checked_before_every_repeat(bench, tmp_path):
     model = ScriptedChatModel(script=[refuse(DOLLAR) for _ in range(10)])
-    # Each run costs just over 1 EUR; the first estimate is 4 EUR over 4 runs a repeat, then the largest run seen.
+    # Each run costs just over 1 EUR, so a repeat of 4 runs just over 4: repeat 2 would pass 6.5.
     results = bench(model, [question("Q1"), question("Q2")], repeats=3, budget_eur=6.5, eur_per_usd=1.0,
                     first_repeat_eur=4.0)
-    assert len(results["runs"]) == 6 and "budget" in results["stopped"] and results["failure"] is None
-    spent = sum(r["cost_eur"] for r in results["runs"])
-    assert spent + max(r["cost_eur"] for r in results["runs"]) > 6.5 >= spent
-    # The stop fell inside repeat 2: the published counts cover repeat 1 only, equal per arm.
+    assert len(results["runs"]) == 4 and "one more repeat" in results["stopped"] and results["failure"] is None
     block = build_block(results)
     assert "1 of 3 repeats completed" in block and "semantic 0 of 2 runs, sql 0 of 2 runs" in block
+
+
+def test_budget_is_checked_before_every_run(bench, tmp_path):
+    model = ScriptedChatModel(script=[refuse(DOLLAR) for _ in range(10)])
+    # The first repeat is estimated at 2 EUR (0.5 a run) and fits; its runs cost 1 EUR each, so run 4 would pass 3.5.
+    results = bench(model, [question("Q1"), question("Q2")], repeats=3, budget_eur=3.5, eur_per_usd=1.0,
+                    first_repeat_eur=2.0)
+    assert len(results["runs"]) == 3 and "the next run" in results["stopped"] and results["failure"] is None
+    # The stop fell inside repeat 1: no repeat is published, and the counts stay equal per arm.
+    block = build_block(results)
+    assert "0 of 3 repeats completed" in block and "semantic 0 of 0 runs, sql 0 of 0 runs" in block
+
+
+def test_the_run_estimate_includes_failed_attempts(bench, tmp_path):
+    # Run 1 costs 1 EUR scored plus 1 EUR in a failed attempt: 2 EUR in all, so run 3 (at 3 EUR spent) would pass 4.5.
+    script = [reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=DOLLAR)] + [refuse(DOLLAR) for _ in range(5)]
+    model = FlakyModel(failures={2: connection_error()}, script=script)
+    results = bench(model, [question("Q1"), question("Q2")], budget_eur=4.5, eur_per_usd=1.0, first_repeat_eur=0.0)
+    assert len(results["runs"]) == 2 and "the next run may cost 2.00" in results["stopped"]
 
 
 def test_a_stop_before_any_run_gives_the_budget_reason(bench, tmp_path):
@@ -193,9 +209,32 @@ def test_run_over_the_wall_clock_limit_makes_no_new_request(bench, tmp_path):
     assert [(r["arm"], r["outcome"], r["retries"]) for r in results["runs"]] == [
         ("semantic", "refusal", 1), ("sql", "refusal", 0)
     ]
+    assert results["attempts_still_running"] == 1  # still hung after the final wait
     # Released, the abandoned run ran its query but made no new model call, and nothing published changed.
     assert model.calls == calls and len(model.script) == 0
     assert [(tmp_path / name).read_text() for name in ("results.json", "errors.jsonl")] == files
+
+
+def test_a_late_response_of_an_abandoned_run_is_priced_into_the_file(bench, tmp_path):
+    late = reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=DOLLAR)
+    model = HangingModel(release=threading.Event(), late=late, script=[refuse(), refuse()])
+    model.probe = lambda call: call == 3 and model.release.set()  # released during the last run
+    results = bench(model, [question("Q1")], run_timeout_s=0.5, eur_per_usd=1.0)
+    assert results["attempts_still_running"] == 0 and model.calls == 3
+    assert results["unscored_eur"] == pytest.approx(cost_eur(DOLLAR, 1.0))
+    assert saved(tmp_path)["unscored_eur"] == results["unscored_eur"]
+
+
+def test_an_interrupt_prices_the_attempt_and_names_the_failure(bench, tmp_path, monkeypatch):
+    def interrupted(limit_s, fn, meter):
+        fn()  # the attempt's response is billed and priced, then Ctrl-C arrives
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(run_module, "_within", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        bench(ScriptedChatModel(script=[refuse(DOLLAR)]), [question("Q1")], eur_per_usd=1.0)
+    kept = saved(tmp_path)
+    assert kept["failure"] == "KeyboardInterrupt" and kept["unscored_eur"] == pytest.approx(cost_eur(DOLLAR, 1.0))
 
 
 def test_one_model_mismatch_fails_the_attempt_and_is_priced_in_full(bench, tmp_path):
@@ -312,9 +351,14 @@ def test_main_passes_the_arguments_and_turns_langsmith_off(fake_main, seed, tmp_
     }
 
 
+def test_main_accepts_a_pilot_below_the_minimum(fake_main):
+    argv = list(ARGV)
+    argv[argv.index("--repeats") + 1] = "1"
+    assert run_module.main(argv) == 0 and (fake_main["repeats"], fake_main["min_repeats"]) == (1, 2)
+
+
 @pytest.mark.parametrize("change", [
-    {"--run-timeout-s": None}, {"--max-attempts": None}, {"--min-repeats": "0"}, {"--repeats": "1"},
-    {"--max-attempts": "0"},
+    {"--run-timeout-s": None}, {"--max-attempts": None}, {"--min-repeats": "0"}, {"--max-attempts": "0"},
 ])
 def test_main_rejects_missing_or_inconsistent_arguments(fake_main, change):
     argv = list(ARGV)
