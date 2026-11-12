@@ -41,8 +41,8 @@ This page says how the questions and their answers were made, what was checked, 
 
 - Both computations share one specification. A rule misread in the same way by both writers,
   or a mistake in the specification itself, is not caught by the comparison.
-- The owner checked a sample of ten answers on 2026-11-12; see `docs/review-log.md`.
-  It is not done yet.
+- The owner checked ten of the 47 reference answers on 2026-11-12 (`docs/review-log.md`). The
+  owner read the values and did not recompute them; the other 37 were not hand-checked.
 - The owner has not yet reworded the questions; the wording is the agent's.
 
 ## Limits
