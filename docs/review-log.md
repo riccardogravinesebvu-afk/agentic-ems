@@ -161,6 +161,35 @@
     pinned by tag and not by commit.
   - Not covered: the demo with a live key, the hosted page, package ownership on the registries.
 
+- Saved sample answers for the page. The owner approved recording the four sample questions
+  with the real model (2026-11-12). Spend 0.08 EUR. The owner answered "not now" to deploying
+  the page on Vercel, so there is no hosted page and the README gives no link.
+- Second code review (`/code-review high`), on the commits made after the first one. Ten
+  findings, on the controller's own fixes. It corrects two entries above:
+  - The database memory limit added after the security review is taken back out. It did not
+    stop one very large cell, and it made a large model-written query spill to a temporary
+    folder beside the database. The limits are again the ones the recorded runs had. So the
+    security review's first low finding stands open: a model-written query can use a lot of
+    memory and run a few seconds past the 10-second limit. It concerns only someone running the
+    paid benchmark.
+  - The change to the cache check is taken back out: it did not cover the case it named. A
+    benchmark of one question can still end marked "no arm ever read from cache".
+  - Fixed: the demo's size limit now counts the bytes of the body, since a chunked request
+    carries no length to check; the README's first screen says the semantic arm refused or
+    returned ingredients, and a test ties its sentences to the results files; the README says
+    the page replays without a key.
+  - Left as it is: the page shows the model's text as plain text, so the Markdown tables in the
+    recorded answers appear as raw markup, also in the README's screenshot. The owner was told.
+- `/cso`: not assessed. Its launcher is not installed on this machine, so it ran nothing. The
+  security review recorded above was done by a separate agent and is not `/cso`.
+- `/document-release`: the design and the plan are kept as approved, each with a note at the
+  top saying what changed later; `docs/stack.md` and the README were checked against the code.
+  Its cross-model review step was skipped: it would send the private repository to an outside
+  service. Nothing was pushed.
+- Total spend on the model API: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
+  with its unscored attempt, sample answers 0.08), priced from the token counts in the
+  responses, not checked against the invoice.
+
 ## Owner rewording
 
 none yet

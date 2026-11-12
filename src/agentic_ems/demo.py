@@ -151,10 +151,13 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
         # A page on another origin can POST text/plain without a preflight; only JSON, which needs one, is read.
         if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
             return JSONResponse({"error": "Send the question as application/json."}, status_code=415)
-        if int(request.headers.get("content-length") or 0) > MAX_BODY_BYTES:
-            return JSONResponse({"error": "The request is too large."}, status_code=413)
+        raw = b""
+        async for chunk in request.stream():  # counted here: a chunked body carries no Content-Length to check
+            raw += chunk
+            if len(raw) > MAX_BODY_BYTES:
+                return JSONResponse({"error": "The request is too large."}, status_code=413)
         try:
-            body = await request.json()
+            body = json.loads(raw)
         except ValueError:
             body = None
         question = body.get("question") if isinstance(body, dict) else None

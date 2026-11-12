@@ -195,7 +195,7 @@ def test_a_disconnect_stops_the_next_model_call_and_the_one_in_flight(con):
 
 
 def check_sample(path, con, catalog) -> None:
-    """A saved sample replays exactly: `query` answers its request with its rows, or it is a refusal."""
+    """A saved sample replays: `query` answers its request with its rows, to float precision, or it is a refusal."""
     sample = json.loads(path.read_text())
     assert sample["question"] in demo.SAMPLE_QUESTIONS
     if sample["refusal"] is not None:
@@ -281,3 +281,7 @@ def test_an_oversized_body_is_refused_before_it_is_parsed(con, monkeypatch):
         "/api/ask", content=json.dumps({"question": "x" * demo.MAX_BODY_BYTES}),
         headers={"content-type": "application/json"})
     assert response.status_code == 413 and model.received == []
+    chunked = client(demo.build_app(con, lambda: model)).post(  # a generator body has no Content-Length
+        "/api/ask", content=iter([b'{"question": "', b"x" * demo.MAX_BODY_BYTES, b'"}']),
+        headers={"content-type": "application/json"})
+    assert chunked.status_code == 413 and model.received == []

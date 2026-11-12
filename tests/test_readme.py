@@ -39,6 +39,9 @@ def test_the_counts_in_the_prose_are_the_counts_in_the_files():
 
     assert count("sql") == count("semantic") == count("sql_schema_only") == 275 and wrong("sql") == 0
     assert "no wrong value in 275 runs" in README
+    found = README.split("## What I found")[1].split("## What this is")[0]
+    assert "made no mistake" in found and "returned 12 wrong values in 275 runs, 4 of them double counts" in found
+    assert "refused or returned ingredients" in found
     assert wrong("sql_schema_only") == 12 and "returned 12 wrong values in 275 runs" in README
     assert count("sql_schema_only", category="double_count") == 4 and "4 are double counts" in README
     assert wrong("sql_schema_only", group="metric_definition") == 3 and "3 are energy per unit" in README

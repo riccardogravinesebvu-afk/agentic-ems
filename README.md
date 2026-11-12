@@ -4,11 +4,11 @@ Written from scratch on synthetic data. No code, schema or data from any employe
 
 ## What I found
 
-With the rules in its prompt, the model that writes SQL made no mistake. Without them it returned 12 wrong values in 275 runs, 4 of them double counts. The semantic layer cannot double count, but it covers only its four metrics, and outside them it returned ingredients, not answers.
+With the rules in its prompt, the model that writes SQL made no mistake. Without them it returned 12 wrong values in 275 runs, 4 of them double counts. The semantic layer cannot double count, but it covers only its four metrics, and outside them it refused or returned ingredients, not answers.
 
 ![The demo page replaying a recorded answer: the model's request, the SQL the compiler wrote, the rows as a chart](docs/images/demo.png)
 
-The page above replays four recorded answers of the `semantic` arm. It runs from a clone, see [Run it](#run-it).
+The page above replays four recorded answers of the `semantic` arm, with no key and no model call. It runs from a clone, see [Run it](#run-it).
 
 ## What this is
 
@@ -139,11 +139,12 @@ uv run python -m agentic_ems.benchmark.verify     # recomputes every reference a
 uv run python -m agentic_ems.benchmark.report     # prints the results block from the committed files
 ```
 
-Ask your own questions from a clone, with your own key. The server listens on localhost only and makes one model call at a time:
+The page, from a clone. Without a key it replays the recorded answers; with your own key it also takes your questions. The server listens on localhost only and makes one model call at a time:
 
 ```bash
 cd frontend && npm ci && npm run build && cd ..
-ANTHROPIC_API_KEY=... uv run python -m agentic_ems.demo serve   # http://127.0.0.1:8000
+uv run python -m agentic_ems.demo serve                         # http://127.0.0.1:8000, recorded answers only
+ANTHROPIC_API_KEY=... uv run python -m agentic_ems.demo serve   # the same, plus your own questions
 ```
 
 The metrics are also an MCP server over stdio, with tools `list_metrics`, `list_meters` and `query_metric`:

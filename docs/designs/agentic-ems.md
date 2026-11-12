@@ -6,7 +6,7 @@ Repo: agentic-ems (private until the owner says publish)
 Status: APPROVED
 Mode: Builder
 
-> **After this document was approved.** It is kept as approved. What changed later is recorded, with dates, in `docs/review-log.md`: a third benchmark arm (`sql_schema_only`, text-to-SQL with the schema and no rules) run into `results/schema_only/`; accuracy intervals computed over questions, not runs; the headline of the results block reworded to "returned rows held a wrong value (the model's text is not scored)"; a database memory limit; hosting on Vercel. Where this document and the README disagree, the README describes the code.
+> **After this document was approved.** It is kept as approved. What changed later is recorded, with dates, in `docs/review-log.md` (the hosting decision in `docs/stack.md`): a third benchmark arm (`sql_schema_only`, text-to-SQL with the schema and no rules) run into `results/schema_only/`; accuracy intervals computed over questions, not runs; the headline of the results block reworded to "returned rows held a wrong value (the model's text is not scored)"; a database memory limit; hosting on Vercel. Where this document and the README disagree, the README describes the code.
 
 ## Problem Statement
 

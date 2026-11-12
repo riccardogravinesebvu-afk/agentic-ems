@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **After this plan was approved.** It is kept as written. What changed later is recorded, with dates, in `docs/review-log.md`: a third benchmark arm (`sql_schema_only`, text-to-SQL with the schema and no rules) run into `results/schema_only/`; accuracy intervals computed over questions, not runs; the headline of the results block reworded to "returned rows held a wrong value (the model's text is not scored)"; a database memory limit; hosting on Vercel. Where this plan and the README disagree, the README describes the code.
+> **After this plan was approved.** It is kept as written. What changed later is recorded, with dates, in `docs/review-log.md` (the hosting decision in `docs/stack.md`): a third benchmark arm (`sql_schema_only`, text-to-SQL with the schema and no rules) run into `results/schema_only/`; accuracy intervals computed over questions, not runs; the headline of the results block reworded to "returned rows held a wrong value (the model's text is not scored)"; a database memory limit; hosting on Vercel. Where this plan and the README disagree, the README describes the code.
 
 **Goal:** Answer natural-language questions on a synthetic plant's energy data through a semantic layer that cannot double count the meter hierarchy, and measure it against text-to-SQL on the same questions.
 

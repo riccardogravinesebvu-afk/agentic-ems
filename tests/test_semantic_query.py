@@ -53,7 +53,6 @@ def test_row_limit(con, catalog):
 
 def test_time_limit_is_set(con):
     assert con.execute("SELECT current_setting('max_execution_time')").fetchall() == [(10000,)]
-    assert con.execute("SELECT current_setting('memory_limit')").fetchall()[0][0].startswith("1.8")
     # SET GLOBAL: a cursor or a second connection to the instance gets the same limit.
     assert con.cursor().execute("SELECT current_setting('max_execution_time')").fetchall() == [(10000,)]
 
