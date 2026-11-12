@@ -280,9 +280,12 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
         errors.close()
         # Wait a bounded time for abandoned attempts, so a late billed response is priced into the file.
         deadline = time.monotonic() + run_timeout_s
-        for meter in unscored:
-            if meter.thread is not None:
-                meter.thread.join(max(0.0, deadline - time.monotonic()))
+        try:
+            for meter in unscored:
+                if meter.thread is not None:
+                    meter.thread.join(max(0.0, deadline - time.monotonic()))
+        except KeyboardInterrupt:
+            pass  # a second Ctrl-C ends the wait only: the save below still runs and the first error stays
         results["attempts_still_running"] = sum(m.thread is not None and m.thread.is_alive() for m in unscored)
         if failure is None and results["runs"] and not any(run["cache_read_input_tokens"] for run in results["runs"]):
             failure = "neither arm ever read from cache"
@@ -312,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--min-repeats must be at least 1")
     if args.max_attempts < 1:
         parser.error("--max-attempts must be at least 1")
+    if args.first_repeat_eur <= 0:  # at 0 neither budget check can stop the first run
+        parser.error("--first-repeat-eur must be above 0")
 
     questions = load_questions()
     if args.only:

@@ -107,6 +107,16 @@ def test_an_incomplete_repeat_is_not_counted():
     assert "semantic 0 of 4 runs, sql 3 of 4 runs" in block
 
 
+def test_attempts_still_running_are_named_next_to_the_spend():
+    results = copy.deepcopy(FIXTURE)
+    assert "still running" not in build_block(results)
+    results["attempts_still_running"] = 2
+    assert ("2 abandoned attempts were still running at the final save; their spend is not included."
+            in build_block(results))
+    results["attempts_still_running"] = 1
+    assert "1 abandoned attempt was still running" in build_block(results)
+
+
 def test_without_a_double_count_the_block_says_so():
     results = copy.deepcopy(FIXTURE)
     for run in results["runs"]:

@@ -237,6 +237,30 @@ def test_an_interrupt_prices_the_attempt_and_names_the_failure(bench, tmp_path, 
     assert kept["failure"] == "KeyboardInterrupt" and kept["unscored_eur"] == pytest.approx(cost_eur(DOLLAR, 1.0))
 
 
+def test_a_second_interrupt_in_the_final_wait_keeps_the_save_and_the_error(bench, tmp_path, monkeypatch):
+    class Stubborn:  # an abandoned attempt's thread; waiting for it is interrupted by a second Ctrl-C
+        def join(self, timeout):
+            raise KeyboardInterrupt
+
+        def is_alive(self):
+            return True
+
+    calls = []
+
+    def within(limit_s, fn, meter):
+        calls.append(meter)
+        if len(calls) == 1:
+            meter.thread = Stubborn()  # type: ignore[assignment]
+            raise run_module.RunTimeout("abandoned")
+        raise ValueError("a harness bug")
+
+    monkeypatch.setattr(run_module, "_within", within)
+    with pytest.raises(ValueError):
+        bench(ScriptedChatModel(script=[]), [question("Q1")])
+    kept = saved(tmp_path)
+    assert kept["failure"] == "ValueError: a harness bug" and kept["attempts_still_running"] == 1
+
+
 def test_one_model_mismatch_fails_the_attempt_and_is_priced_in_full(bench, tmp_path):
     model = ScriptedChatModel(script=[refuse(DOLLAR, model="claude-other"), refuse(), refuse()])
     results = bench(model, [question("Q1")], eur_per_usd=1.0)
@@ -359,6 +383,7 @@ def test_main_accepts_a_pilot_below_the_minimum(fake_main):
 
 @pytest.mark.parametrize("change", [
     {"--run-timeout-s": None}, {"--max-attempts": None}, {"--min-repeats": "0"}, {"--max-attempts": "0"},
+    {"--first-repeat-eur": "0"},
 ])
 def test_main_rejects_missing_or_inconsistent_arguments(fake_main, change):
     argv = list(ARGV)

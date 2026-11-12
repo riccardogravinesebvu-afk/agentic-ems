@@ -81,6 +81,9 @@ def build_block(results: dict) -> str:
     lines += ["", (f"Spend: {counted:.2f} EUR in the runs the table counts, {incomplete:.2f} EUR in runs of an "
                    f"incomplete repeat and {results['unscored_eur']:.2f} EUR in attempts that were not scored, of a "
                    f"budget of {results['budget_eur']:.2f} EUR.")]
+    if running := results["attempts_still_running"]:
+        lines[-1] += (f" {running} abandoned attempt{'s were' if running != 1 else ' was'} still running at the "
+                      "final save; their spend is not included.")
     if not enough:
         lines += ["", (f"This run is below the minimum of {results['min_repeats']} repeats: the block shows counts "
                        "only, and no comparison between the arms is claimed.")]
