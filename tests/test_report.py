@@ -22,6 +22,8 @@ EXPECTED = """\
 
 2 of 2 repeats completed, 4 questions, model claude-opus-5-5, effort high.
 
+Spend: 0.22 EUR in scored runs and 0.01 EUR in attempts that were not scored, of a budget of 20.00 EUR.
+
 | Arm | Group | Correct | Refusals | Known wrong | Other wrong | No answer | Cost EUR | EUR per correct | Earlier call correct |
 |---|---|---|---|---|---|---|---|---|---|
 | semantic | hierarchy | 3 of 4, 75% (30% to 95%) | 1 | 0 | 0 | 0 | 0.03 | 0.011 | 0 |
@@ -79,10 +81,10 @@ def test_wilson_interval():
     assert wilson(5, 10) == pytest.approx((0.2366, 0.7634), abs=1e-4)
 
 
-def test_bootstrap_is_deterministic():
-    diffs = [0.0, 0.5, 1.0, -0.5, 0.25]
-    lo, hi = bootstrap(diffs)
-    assert bootstrap(diffs) == (lo, hi) and -0.5 <= lo < sum(diffs) / len(diffs) < hi <= 1.0
+def test_bootstrap_interval():
+    # Ten questions, one with a difference of 1: a resample's mean is k/10 with k ~ Binomial(10, 0.1).
+    # P(k = 0) = 0.35 puts the 2.5% point at 0; P(k >= 3) = 0.070 and P(k >= 4) = 0.013 put the 97.5% point at 0.3.
+    assert bootstrap([0.0] * 9 + [1.0]) == pytest.approx((0.0, 0.3))
     assert bootstrap([0.25] * 5) == (0.25, 0.25)
 
 
@@ -98,6 +100,9 @@ def test_an_incomplete_repeat_is_not_counted():
     results["runs"].pop()  # repeat 2 now lacks one run
     block = build_block(results)
     assert "1 of 2 repeats completed" in block and f"{BELOW_MINIMUM} 2 repeats" in block
+    assert "stopped" not in block
+    results["stopped"] = "the budget: example"
+    assert "The benchmark stopped early, at the budget: example." in build_block(results)
     assert "semantic 0 of 4 runs, sql 3 of 4 runs" in block
 
 

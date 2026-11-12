@@ -4,40 +4,64 @@ import os
 import threading
 from typing import Any
 
+import anthropic
+import httpx2
 import pytest
 from fakes import USAGE, ScriptedChatModel, reply
+from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from agentic_ems.agent import MODEL, semantic_arm
 from agentic_ems.benchmark import run as run_module
-from agentic_ems.benchmark.run import BACKOFF_BASE_S, PRICES, run_benchmark
+from agentic_ems.benchmark.report import build_block
+from agentic_ems.benchmark.run import (
+    BACKOFF_BASE_S,
+    IN_PROGRESS,
+    PRICES,
+    cost_eur,
+    run_benchmark,
+)
 from agentic_ems.benchmark.sql_arm import sql_arm
 from agentic_ems.benchmark.verify import QUESTIONS_FILE, Question, Truth
-from agentic_ems.generator import SEED
 from agentic_ems.semantic import load_catalog
 
 CACHED = USAGE | {"cache_read_input_tokens": 100}
+DOLLAR = USAGE | {"input_tokens": 0, "output_tokens": 50_000, "cache_read_input_tokens": 1}  # just over 1 USD
 TRUTH = Truth((["value"], [(1.0,)]), [("double_count", ["value"], [(2.0,)])])
+REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")  # never sent
+
+
+def connection_error() -> anthropic.APIConnectionError:
+    return anthropic.APIConnectionError(request=REQUEST)
 
 
 class FlakyModel(ScriptedChatModel):
-    failures: list = Field(default_factory=list)  # raised in order before the script plays
+    """Raises the exception keyed by the number of the call (1-based) instead of replying; can run a probe first."""
+
+    failures: dict = Field(default_factory=dict)
+    probe: Any = None
+    calls: int = 0
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs: Any):
-        if self.failures:
-            raise self.failures.pop(0)
+        self.calls += 1
+        if self.probe:
+            self.probe(self.calls)
+        if self.calls in self.failures:
+            raise self.failures[self.calls]
         return super()._generate(messages, stop, run_manager, **kwargs)
 
 
-class HangingModel(ScriptedChatModel):
+class HangingModel(FlakyModel):
+    """The first call hangs until released, then answers with `late`, a tool call, so the loop would call again."""
+
     release: Any = None
-    hung: bool = False
+    late: Any = None
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs: Any):
-        if not self.hung:  # the first call hangs past the limit, then fails without touching the script
-            self.hung = True
+        if self.calls == 0:
+            self.calls += 1
             self.release.wait(10)
-            raise RuntimeError("released after the test")
+            return ChatResult(generations=[ChatGeneration(message=self.late)])
         return super()._generate(messages, stop, run_manager, **kwargs)
 
 
@@ -55,21 +79,35 @@ def arms(con):
     return [semantic_arm(con, catalog), sql_arm(con, catalog, "Schema text.")]
 
 
-def bench(model, questions, arms, tmp_path, **overrides):
-    kwargs: dict[str, Any] = {
-        "repeats": 1, "budget_eur": 100.0, "eur_per_usd": 0.9, "min_repeats": 1, "first_repeat_eur": 0.0,
-        "effort": "high", "run_timeout_s": 30.0, "out_dir": tmp_path, "sleep": lambda seconds: None,
-    } | overrides
-    return run_benchmark(model, questions, {q.id: TRUTH for q in questions}, arms, **kwargs)
+@pytest.fixture(scope="module")
+def seed(con):
+    with con.cursor() as cursor:
+        return cursor.execute("SELECT seed FROM dataset_info").fetchone()[0]
+
+
+@pytest.fixture
+def bench(arms, seed, tmp_path):
+    def run(model, questions, **overrides):
+        kwargs: dict[str, Any] = {
+            "repeats": 1, "budget_eur": 100.0, "eur_per_usd": 0.9, "min_repeats": 1, "first_repeat_eur": 0.0,
+            "effort": "high", "seed": seed, "run_timeout_s": 30.0, "max_attempts": 5, "out_dir": tmp_path,
+            "sleep": lambda seconds: None,
+        } | overrides
+        return run_benchmark(model, questions, {q.id: TRUTH for q in questions}, arms, **kwargs)
+    return run
 
 
 def errors(tmp_path) -> list[dict]:
     return [json.loads(line) for line in (tmp_path / "errors.jsonl").read_text().splitlines()]
 
 
-def test_runs_are_ordered_by_repeat(arms, tmp_path):
-    model = ScriptedChatModel(script=[refuse() for _ in range(8)])
-    results = bench(model, [question("Q1"), question("Q2")], arms, tmp_path, repeats=2)
+def saved(tmp_path) -> dict:
+    return json.loads((tmp_path / "results.json").read_text())
+
+
+def test_runs_are_ordered_by_repeat(bench, tmp_path):
+    results = bench(ScriptedChatModel(script=[refuse() for _ in range(8)]), [question("Q1"), question("Q2")],
+                    repeats=2)
     assert [(r["question"], r["arm"], r["repeat"]) for r in results["runs"]] == [
         (q, arm, repeat) for repeat in (1, 2) for q in ("Q1", "Q2") for arm in ("semantic", "sql")
     ]
@@ -80,96 +118,149 @@ def test_runs_are_ordered_by_repeat(arms, tmp_path):
     )
     transcript = json.loads((tmp_path / results["runs"][0]["transcript"]).read_text())
     assert transcript["record"]["final"] == "refusal" and transcript["score"]["outcome"] == "refusal"
-    assert json.loads((tmp_path / "results.json").read_text()) == results
-    assert results["failure"] is None
+    assert saved(tmp_path) == results
+    assert results["failure"] is None and results["stopped"] is None and results["unscored_eur"] == 0
 
 
-def test_budget_stops_before_a_repeat_that_would_not_fit(arms, tmp_path):
-    dollar = USAGE | {"input_tokens": 0, "output_tokens": 50_000, "cache_read_input_tokens": 1}  # just over 1 USD
-    model = ScriptedChatModel(script=[refuse(dollar) for _ in range(10)])
-    results = bench(model, [question("Q1")], arms, tmp_path / "a", repeats=5, budget_eur=5.0, eur_per_usd=1.0,
-                    first_repeat_eur=2.0)
-    # Repeat 1 is estimated at 2 EUR, repeat 2 at the mean so far (just over 2), and repeat 3 would pass 5.
-    assert [(r["arm"], r["repeat"]) for r in results["runs"]] == [
-        ("semantic", 1), ("sql", 1), ("semantic", 2), ("sql", 2)
-    ]
-    results = bench(model, [question("Q1")], arms, tmp_path / "b", repeats=5, budget_eur=1.0, eur_per_usd=1.0,
-                    first_repeat_eur=2.0)
-    assert results["runs"] == []
+def test_budget_is_checked_before_every_run(bench, tmp_path):
+    model = ScriptedChatModel(script=[refuse(DOLLAR) for _ in range(10)])
+    # Each run costs just over 1 EUR; the first estimate is 4 EUR over 4 runs a repeat, then the largest run seen.
+    results = bench(model, [question("Q1"), question("Q2")], repeats=3, budget_eur=6.5, eur_per_usd=1.0,
+                    first_repeat_eur=4.0)
+    assert len(results["runs"]) == 6 and "budget" in results["stopped"] and results["failure"] is None
+    spent = sum(r["cost_eur"] for r in results["runs"])
+    assert spent + max(r["cost_eur"] for r in results["runs"]) > 6.5 >= spent
+    # The stop fell inside repeat 2: the published counts cover repeat 1 only, equal per arm.
+    block = build_block(results)
+    assert "1 of 3 repeats completed" in block and "semantic 0 of 2 runs, sql 0 of 2 runs" in block
 
 
-def test_api_error_is_retried_logged_and_not_scored(arms, tmp_path):
+def test_a_stop_before_any_run_gives_the_budget_reason(bench, tmp_path):
+    results = bench(ScriptedChatModel(script=[]), [question("Q1")], budget_eur=1.0, first_repeat_eur=4.0)
+    assert results["runs"] == [] and "budget" in results["stopped"] and results["failure"] is None
+
+
+def test_api_error_is_retried_logged_and_not_scored(bench, tmp_path):
+    (tmp_path / "errors.jsonl").write_text('{"earlier": "line"}\n')
     slept: list[float] = []
-    model = FlakyModel(failures=[ConnectionError("overloaded")], script=[refuse(), refuse()])
-    results = bench(model, [question("Q1")], arms, tmp_path, sleep=slept.append)
+    model = FlakyModel(failures={1: connection_error()}, script=[refuse(), refuse()])
+    results = bench(model, [question("Q1")], sleep=slept.append)
     assert [(r["arm"], r["retries"]) for r in results["runs"]] == [("semantic", 1), ("sql", 0)]
-    [error] = errors(tmp_path)
+    earlier, error = errors(tmp_path)
+    assert earlier == {"earlier": "line"}  # appended, not overwritten
     assert error | {"elapsed_s": 0} == {
-        "question": "Q1", "arm": "semantic", "repeat": 1, "attempt": 1, "cause": "ConnectionError",
-        "message": "overloaded", "elapsed_s": 0,
+        "run_id": results["run_id"], "question": "Q1", "arm": "semantic", "repeat": 1, "attempt": 1,
+        "cause": "APIConnectionError", "message": "Connection error.", "elapsed_s": 0,
     }
     assert len(slept) == 1 and 0 <= slept[0] <= BACKOFF_BASE_S
 
 
-def test_run_over_the_wall_clock_limit_is_a_logged_failure(arms, tmp_path):
-    model = HangingModel(release=threading.Event(), script=[refuse(), refuse()])
+@pytest.mark.parametrize("failure", [
+    anthropic.BadRequestError("bad", response=httpx2.Response(400, request=REQUEST), body=None),
+    ValueError("a harness bug"),
+])
+def test_other_errors_end_the_benchmark_with_results_kept(bench, tmp_path, failure):
+    model = FlakyModel(failures={2: failure}, script=[refuse(), refuse()])
+    with pytest.raises(type(failure)):
+        bench(model, [question("Q1")])
+    kept = saved(tmp_path)
+    assert len(kept["runs"]) == 1 and kept["failure"].startswith(type(failure).__name__)
+
+
+def test_an_attempt_that_fails_after_a_billed_response_is_priced(bench, tmp_path):
+    script = [reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=DOLLAR), refuse(DOLLAR), refuse(DOLLAR)]
+    model = FlakyModel(failures={2: connection_error()}, script=script)
+    results = bench(model, [question("Q1")], eur_per_usd=1.0)
+    one = cost_eur(DOLLAR, 1.0)
+    assert results["unscored_eur"] == pytest.approx(one)
+    assert [r["cost_eur"] for r in results["runs"]] == pytest.approx([one, one])
+
+
+def test_run_over_the_wall_clock_limit_makes_no_new_request(bench, tmp_path):
+    model = HangingModel(release=threading.Event(), script=[refuse(), refuse()],
+                         late=reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=CACHED))
     try:
-        results = bench(model, [question("Q1")], arms, tmp_path, run_timeout_s=0.2)
+        results = bench(model, [question("Q1")], run_timeout_s=0.2)
+        files = [(tmp_path / name).read_text() for name in ("results.json", "errors.jsonl")]
+        calls = model.calls
     finally:
         model.release.set()
+    for thread in threading.enumerate():
+        if thread.name == "benchmark-attempt":
+            thread.join(10)
     [error] = errors(tmp_path)
     assert error["cause"] == "RunTimeout" and error["arm"] == "semantic"
     assert [(r["arm"], r["outcome"], r["retries"]) for r in results["runs"]] == [
         ("semantic", "refusal", 1), ("sql", "refusal", 0)
     ]
+    # Released, the abandoned run ran its query but made no new model call, and nothing published changed.
+    assert model.calls == calls and len(model.script) == 0
+    assert [(tmp_path / name).read_text() for name in ("results.json", "errors.jsonl")] == files
 
 
-def test_one_model_mismatch_fails_the_attempt(arms, tmp_path):
-    model = ScriptedChatModel(script=[refuse(model="claude-other"), refuse(), refuse()])
-    results = bench(model, [question("Q1")], arms, tmp_path)
+def test_one_model_mismatch_fails_the_attempt_and_is_priced_in_full(bench, tmp_path):
+    model = ScriptedChatModel(script=[refuse(DOLLAR, model="claude-other"), refuse(), refuse()])
+    results = bench(model, [question("Q1")], eur_per_usd=1.0)
     assert [error["cause"] for error in errors(tmp_path)] == ["ModelMismatch"]
     assert [r["retries"] for r in results["runs"]] == [1, 0] and results["failure"] is None
+    assert results["unscored_eur"] == pytest.approx(cost_eur(DOLLAR, 1.0))
 
 
-def test_three_model_mismatches_in_a_row_abort(arms, tmp_path):
+def test_three_model_mismatches_in_a_row_abort(bench, tmp_path):
     model = ScriptedChatModel(script=[refuse(model="claude-other") for _ in range(3)] + [refuse()])
-    results = bench(model, [question("Q1")], arms, tmp_path)
+    results = bench(model, [question("Q1")])
     assert [error["cause"] for error in errors(tmp_path)] == ["ModelMismatch"] * 3
     assert results["runs"] == [] and "model mismatches in a row" in results["failure"]
-    assert json.loads((tmp_path / "results.json").read_text())["failure"] == results["failure"]
+    assert saved(tmp_path)["failure"] == results["failure"]
 
 
-def test_cost_uses_all_four_token_counts(arms, tmp_path):
+def test_attempts_are_capped(bench, tmp_path):
+    model = FlakyModel(failures={n: connection_error() for n in (1, 2)}, script=[refuse()])
+    results = bench(model, [question("Q1")], max_attempts=2)
+    assert results["runs"] == [] and "failed 2 attempts" in results["failure"]
+
+
+def test_results_are_saved_after_every_run(bench, tmp_path):
+    seen: list[tuple] = []
+
+    def probe(call: int) -> None:
+        kept = saved(tmp_path)
+        seen.append((call, len(kept["runs"]), kept["failure"]))
+
+    bench(FlakyModel(probe=probe, script=[refuse(), refuse()]), [question("Q1")])
+    assert seen == [(1, 0, IN_PROGRESS), (2, 1, IN_PROGRESS)]
+
+
+def test_cost_uses_all_four_token_counts(bench, tmp_path):
     million = dict.fromkeys(USAGE, 1_000_000)
-    model = ScriptedChatModel(script=[refuse(million), refuse(million)])
-    run = bench(model, [question("Q1")], arms, tmp_path, eur_per_usd=0.9)["runs"][0]
+    run = bench(ScriptedChatModel(script=[refuse(million), refuse(million)]), [question("Q1")],
+                eur_per_usd=0.9)["runs"][0]
     assert {key: run[key] for key in USAGE} == million
     assert run["cost_eur"] == pytest.approx((4.00 + 5.00 + 0.20 + 20.00) * 0.9)
     assert PRICES == {"input_tokens": 4.00, "cache_creation_input_tokens": 5.00, "cache_read_input_tokens": 0.20,
                       "output_tokens": 20.00}
 
 
-def test_scored_answer_is_recorded_with_its_sql(arms, tmp_path):
+def test_scored_answer_is_recorded_with_its_sql(bench, tmp_path):
     sql = "SELECT 2.0 AS value"
     model = ScriptedChatModel(script=[refuse(), reply(("run_sql", {"sql": sql}), usage=CACHED),
                                       reply(text="Done.", usage=CACHED)])
-    results = bench(model, [question("Q1", "hierarchy")], arms, tmp_path)
+    results = bench(model, [question("Q1", "hierarchy")])
     run = results["runs"][1]
     assert (run["arm"], run["group"], run["outcome"], run["category"], run["correct"]) == (
         "sql", "hierarchy", "known_wrong", "double_count", False
     )
     assert run["sql"] == sql and run["answer"] == {"columns": ["value"], "rows": [[2.0]]}
+    assert run["cost_eur"] == pytest.approx(2 * cost_eur(CACHED, 0.9))  # both responses of the run
     assert results["questions"]["Q1"] == {
         "group": "hierarchy", "text": "Question Q1?", "reference": {"columns": ["value"], "rows": [[1.0]]},
-        "correct_runs": {"semantic": 0, "sql": 0},
     }
 
 
-def test_versions_are_recorded(arms, tmp_path):
-    results = bench(ScriptedChatModel(script=[refuse(), refuse()]), [question("Q1")], arms, tmp_path,
-                    effort="medium")
+def test_versions_are_recorded(bench, seed, tmp_path):
+    results = bench(ScriptedChatModel(script=[refuse(), refuse()]), [question("Q1")], effort="medium")
     versions = results["versions"]
-    assert versions["seed"] == SEED and versions["model"] == MODEL and versions["effort"] == "medium"
+    assert versions["seed"] == seed and versions["model"] == MODEL and versions["effort"] == "medium"
     assert versions["questions_sha256"] == hashlib.sha256(QUESTIONS_FILE.read_bytes()).hexdigest()
     assert len(versions["scorer_sha256"]) == 64 and set(versions["prompts_sha256"]) == {"semantic", "sql"}
     prompt = (tmp_path / "runs" / results["run_id"] / "sql-prompt.json").read_text()
@@ -180,14 +271,20 @@ def test_versions_are_recorded(arms, tmp_path):
     assert results["prices"] == {"usd_per_million_tokens": PRICES}
 
 
-def test_run_fails_when_neither_arm_reads_from_cache(arms, tmp_path):
-    results = bench(ScriptedChatModel(script=[refuse(USAGE), refuse(USAGE)]), [question("Q1")], arms, tmp_path)
+def test_run_fails_when_neither_arm_reads_from_cache(bench, tmp_path):
+    results = bench(ScriptedChatModel(script=[refuse(USAGE), refuse(USAGE)]), [question("Q1")])
     assert results["failure"] == "neither arm ever read from cache"
-    assert json.loads((tmp_path / "results.json").read_text())["failure"] == results["failure"]
+    assert saved(tmp_path)["failure"] == results["failure"]
     assert len(results["runs"]) == 2  # the evidence is kept
 
 
-def test_main_passes_the_arguments_and_turns_langsmith_off(monkeypatch, db_path, tmp_path):
+ARGV = ["--repeats", "3", "--min-repeats", "2", "--budget-eur", "12.5", "--first-repeat-eur", "1.5",
+        "--eur-per-usd", "0.92", "--effort", "high", "--max-tokens", "4000", "--max-attempts", "4",
+        "--run-timeout-s", "90", "--arm", "sql", "--only", "H1", "C1"]
+
+
+@pytest.fixture
+def fake_main(monkeypatch, db_path, tmp_path):
     seen: dict[str, Any] = {}
 
     def fake_benchmark(model, questions, truths, arms, **kwargs):
@@ -200,16 +297,30 @@ def test_main_passes_the_arguments_and_turns_langsmith_off(monkeypatch, db_path,
     monkeypatch.setattr(run_module, "RESULTS", tmp_path)
     monkeypatch.setattr(run_module, "make_model", lambda **kwargs: kwargs)
     monkeypatch.setattr(run_module, "run_benchmark", fake_benchmark)
-    argv = ["--repeats", "3", "--min-repeats", "2", "--budget-eur", "12.5", "--first-repeat-eur", "1.5",
-            "--eur-per-usd", "0.92", "--effort", "high", "--max-tokens", "4000", "--run-timeout-s", "90",
-            "--arm", "sql", "--only", "H1", "C1"]
-    assert run_module.main(argv) == 0
-    assert seen["tracing"] == "false" and seen["model"] == {"effort": "high", "max_tokens": 4000}
-    assert seen["questions"] == ["H1", "C1"] and seen["arms"] == ["sql"]
-    assert {key: seen[key] for key in ("repeats", "min_repeats", "budget_eur", "first_repeat_eur", "eur_per_usd",
-                                       "effort", "run_timeout_s", "out_dir")} == {
+    return seen
+
+
+def test_main_passes_the_arguments_and_turns_langsmith_off(fake_main, seed, tmp_path):
+    assert run_module.main(ARGV) == 0
+    assert fake_main["tracing"] == "false" and fake_main["model"] == {"effort": "high", "max_tokens": 4000}
+    assert fake_main["questions"] == ["H1", "C1"] and fake_main["arms"] == ["sql"]
+    keys = ("repeats", "min_repeats", "budget_eur", "first_repeat_eur", "eur_per_usd", "effort", "seed",
+            "run_timeout_s", "max_attempts", "out_dir")
+    assert {key: fake_main[key] for key in keys} == {
         "repeats": 3, "min_repeats": 2, "budget_eur": 12.5, "first_repeat_eur": 1.5, "eur_per_usd": 0.92,
-        "effort": "high", "run_timeout_s": 90.0, "out_dir": tmp_path,
+        "effort": "high", "seed": seed, "run_timeout_s": 90.0, "max_attempts": 4, "out_dir": tmp_path,
     }
+
+
+@pytest.mark.parametrize("change", [
+    {"--run-timeout-s": None}, {"--max-attempts": None}, {"--min-repeats": "0"}, {"--repeats": "1"},
+    {"--max-attempts": "0"},
+])
+def test_main_rejects_missing_or_inconsistent_arguments(fake_main, change):
+    argv = list(ARGV)
+    for flag, value in change.items():
+        at = argv.index(flag)
+        argv[at:at + 2] = [] if value is None else [flag, value]
     with pytest.raises(SystemExit):
-        run_module.main(argv[:-7])  # no --run-timeout-s
+        run_module.main(argv)
+    assert "repeats" not in fake_main

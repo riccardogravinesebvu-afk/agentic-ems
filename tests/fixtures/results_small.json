@@ -37,10 +37,6 @@
       100.0
      ]
     ]
-   },
-   "correct_runs": {
-    "semantic": 2,
-    "sql": 1
    }
   },
   "H2": {
@@ -55,10 +51,6 @@
       50.0
      ]
     ]
-   },
-   "correct_runs": {
-    "semantic": 1,
-    "sql": 1
    }
   },
   "C1": {
@@ -73,20 +65,12 @@
       10.0
      ]
     ]
-   },
-   "correct_runs": {
-    "semantic": 2,
-    "sql": 1
    }
   },
   "U1": {
    "group": "unanswerable",
    "text": "How much did U1 use?\n\nAnswer with a single row with one column, value, which is a number, or null where the question has no value for that row.",
-   "reference": null,
-   "correct_runs": {
-    "semantic": 2,
-    "sql": 1
-   }
+   "reference": null
   }
  },
  "runs": [
@@ -494,5 +478,7 @@
    "transcript": "runs/20261112T090000Z/U1-sql-2.json"
   }
  ],
- "failure": null
+ "failure": null,
+ "unscored_eur": 0.0123,
+ "stopped": null
 }

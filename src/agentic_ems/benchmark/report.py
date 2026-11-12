@@ -74,6 +74,11 @@ def build_block(results: dict) -> str:
     versions = results["versions"]
     lines += ["", (f"{completed} of {results['repeats']} repeats completed, {len(questions)} questions, model "
                    f"{versions['model']}, effort {versions['effort']}.")]
+    if results["stopped"]:
+        lines += ["", f"The benchmark stopped early, at {results['stopped']}."]
+    scored = sum(r["cost_eur"] for r in results["runs"])
+    lines += ["", (f"Spend: {scored:.2f} EUR in scored runs and {results['unscored_eur']:.2f} EUR in attempts that "
+                   f"were not scored, of a budget of {results['budget_eur']:.2f} EUR.")]
     if not enough:
         lines += ["", (f"This run is below the minimum of {results['min_repeats']} repeats: the block shows counts "
                        "only, and no comparison between the arms is claimed.")]

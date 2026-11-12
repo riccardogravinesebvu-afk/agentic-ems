@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 
-SEED = 20261111
 TIMEZONE = "Europe/Rome"
 TZ = ZoneInfo(TIMEZONE)
 STEP = timedelta(minutes=15)
@@ -140,7 +139,7 @@ def battery_kwh(rng: random.Random, local: datetime, solar: float, charged: floa
 
 
 def generate(
-    path: Path, seed: int = SEED, start: date = date(2025, 11, 1), end: date = date(2026, 11, 1)
+    path: Path, seed: int = 20261111, start: date = date(2025, 11, 1), end: date = date(2026, 11, 1)
 ) -> None:
     rng = random.Random(seed)
     meters, lines = build_meters()

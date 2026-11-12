@@ -12,6 +12,7 @@ name = "agentic-ems"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anthropic" },
     { name = "duckdb" },
     { name = "langchain-anthropic" },
     { name = "langchain-core" },
@@ -31,6 +32,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", specifier = "==2.8.0" },
     { name = "duckdb", specifier = "==2.0.0" },
     { name = "langchain-anthropic", specifier = "==1.7.10" },
     { name = "langchain-core", specifier = "==1.8.0" },
