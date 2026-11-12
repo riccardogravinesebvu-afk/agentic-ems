@@ -2,13 +2,15 @@
 
 Written from scratch on synthetic data. No code, schema or data from any employer or customer.
 
+Live demo: https://agentic-ems-demo.vercel.app (four recorded answers, no key, no model call).
+
 ## What I found
 
 With the rules in its prompt, the model that writes SQL made no mistake. Without them it returned 12 wrong values in 275 runs, 4 of them double counts. The semantic layer cannot double count, but it covers only its four metrics, and outside them it refused or returned ingredients, not answers.
 
 ![The demo page replaying a recorded answer: the model's request, the SQL the compiler wrote, the rows as a chart](docs/images/demo.png)
 
-The page above replays four recorded answers of the `semantic` arm, with no key and no model call. It runs from a clone, see [Run it](#run-it).
+The page above replays four recorded answers of the `semantic` arm, with no key and no model call. The same page is at the link above. For your own questions it runs from a clone, see [Run it](#run-it).
 
 ## What this is
 

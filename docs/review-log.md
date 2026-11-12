@@ -164,6 +164,10 @@
 - Saved sample answers for the page. The owner approved recording the four sample questions
   with the real model (2026-11-12). Spend 0.08 EUR. The owner answered "not now" to deploying
   the page on Vercel, so there is no hosted page and the README gives no link.
+  Later the same day the owner said yes: the built `frontend/dist` folder alone (the page and
+  the four saved answers, no source, no key) was deployed to
+  https://agentic-ems-demo.vercel.app and the link is at the top of the README. Checked: the
+  page and `samples/index.json` answer 200. The repository stays private.
 - Second code review (`/code-review high`), on the commits made after the first one. Ten
   findings, on the controller's own fixes. It corrects two entries above:
   - The database memory limit added after the security review is taken back out. It did not
