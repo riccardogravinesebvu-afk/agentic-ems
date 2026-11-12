@@ -1,0 +1,122 @@
+{
+ "question": "Which five machines used the most energy last quarter?",
+ "text": "These are the five machines that used the most energy last quarter (Q3 2026, 1 July to 30 September), going by each machine's own meter:\n\n| Rank | Machine | Line / Department | Consumption (kWh) |\n|---|---|---|---|\n| 1 | Oven 1 (mach_c1_1) | Painting line 1 | 199,186 |\n| 2 | Press 5 (mach_a3_2) | Stamping line 3 | 157,659 |\n| 3 | Press 4 (mach_a3_1) | Stamping line 3 | 157,224 |\n| 4 | Oven 2 (mach_c2_1) | Painting line 2 | 138,316 |\n| 5 | Press 3 (mach_a2_1) | Stamping line 2 | 113,498 |\n\n- The two painting ovens and three stamping presses make up the top five. Welder 3 (mach_b2_1) comes next at 92,008 kWh.\n- Press 4 and Press 5 used almost the same amount, about 435 kWh apart.\n- The query returned all 26 machines. I picked the top five from that list.",
+ "request": {
+  "metric": "consumption_kwh",
+  "start": "2026-07-01",
+  "end": "2026-10-01",
+  "breakdown": "machine"
+ },
+ "sql": "SELECT r.meter_id AS meter_id, sum(r.kwh) AS value FROM reading r WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ? GROUP BY r.meter_id ORDER BY r.meter_id",
+ "columns": [
+  "meter_id",
+  "value"
+ ],
+ "rows": [
+  [
+   "mach_a1_1",
+   78542.19899999994
+  ],
+  [
+   "mach_a1_2",
+   78415.3219999999
+  ],
+  [
+   "mach_a1_3",
+   34013.13700000001
+  ],
+  [
+   "mach_a2_1",
+   113498.0059999999
+  ],
+  [
+   "mach_a2_2",
+   49520.03800000003
+  ],
+  [
+   "mach_a2_3",
+   49413.80399999994
+  ],
+  [
+   "mach_a3_1",
+   157224.20800000016
+  ],
+  [
+   "mach_a3_2",
+   157658.97899999988
+  ],
+  [
+   "mach_b1_1",
+   38378.75400000002
+  ],
+  [
+   "mach_b1_2",
+   38452.36899999999
+  ],
+  [
+   "mach_b1_3",
+   17864.761
+  ],
+  [
+   "mach_b2_1",
+   92008.27099999995
+  ],
+  [
+   "mach_b2_2",
+   37265.383999999984
+  ],
+  [
+   "mach_b2_3",
+   37241.29700000002
+  ],
+  [
+   "mach_b3_1",
+   63391.15000000007
+  ],
+  [
+   "mach_b3_2",
+   26865.812999999973
+  ],
+  [
+   "mach_c1_1",
+   199186.2429999999
+  ],
+  [
+   "mach_c1_2",
+   35202.062999999995
+  ],
+  [
+   "mach_c1_3",
+   35166.314999999995
+  ],
+  [
+   "mach_c2_1",
+   138315.9189999999
+  ],
+  [
+   "mach_c2_2",
+   20818.90999999998
+  ],
+  [
+   "mach_d1_1",
+   15357.208999999995
+  ],
+  [
+   "mach_d1_2",
+   27393.006
+  ],
+  [
+   "mach_d1_3",
+   11584.913000000008
+  ],
+  [
+   "mach_d2_1",
+   10859.541999999987
+  ],
+  [
+   "mach_d2_2",
+   9034.769999999995
+  ]
+ ],
+ "refusal": null
+}

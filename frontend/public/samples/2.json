@@ -1,0 +1,31 @@
+{
+ "question": "Break down Stamping by line for May 2026.",
+ "text": "Here's how much energy each Stamping line used in May 2026 (1 May to 31 May). You didn't name a metric, so I used energy consumption.\n\n| Line | Consumption (kWh) |\n|---|---|\n| Stamping line 1 | 74,641.3 |\n| Stamping line 2 | 80,644.2 |\n| Stamping line 3 | 124,659.8 |\n\nLine 3 used the most, about 45% of the three lines' combined 279,945.4 kWh. That combined figure is less than Stamping's own total, because the department meter also counts unmetered load and losses.\n\nI can also run this as cost, peak demand or energy per unit.",
+ "request": {
+  "metric": "consumption_kwh",
+  "node": "dept_a",
+  "breakdown": "line",
+  "start": "2026-05-01",
+  "end": "2026-06-01"
+ },
+ "sql": "SELECT r.meter_id AS meter_id, sum(r.kwh) AS value FROM reading r WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ? GROUP BY r.meter_id ORDER BY r.meter_id",
+ "columns": [
+  "meter_id",
+  "value"
+ ],
+ "rows": [
+  [
+   "line_a1",
+   74641.34499999993
+  ],
+  [
+   "line_a2",
+   80644.235
+  ],
+  [
+   "line_a3",
+   124659.77099999996
+  ]
+ ],
+ "refusal": null
+}

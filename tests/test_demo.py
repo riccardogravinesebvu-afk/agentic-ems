@@ -206,7 +206,9 @@ def check_sample(path, con, catalog) -> None:
     with con.cursor() as cursor:
         result = query(sample["request"], cursor, catalog)
     assert sample["sql"] == result.sql and sample["columns"] == result.columns
-    assert sample["rows"] == json.loads(json.dumps(result.rows))
+    # DuckDB sums in parallel, so the last digits of a float can differ between two runs of one query.
+    assert sample["rows"] == [[pytest.approx(cell, rel=1e-9) if isinstance(cell, float) else cell for cell in row]
+                              for row in json.loads(json.dumps(result.rows))]
 
 
 INDEX = demo.SAMPLES / "index.json"

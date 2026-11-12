@@ -1,0 +1,23 @@
+{
+ "question": "Welding line 1 and Painting line 2 share a transformer. What was their highest combined load in the week of 9 March 2026?",
+ "text": "The highest combined load on Welding line 1 and Painting line 2 in the week of 9 March 2026 was **436.72 kW**.\n\nThis is the most both lines drew at the same moment. For each 15-minute interval, the energy the two lines used was added together and multiplied by 4 to get the load in kW, and the highest interval of the week was taken. Adding each line's own peak would usually overstate the transformer's load, because the two lines may not peak at the same time.\n\nThe week is Monday 9 March through Sunday 15 March 2026, in plant local time.",
+ "request": {
+  "metric": "peak_kw",
+  "meters": [
+   "line_b1",
+   "line_c2"
+  ],
+  "start": "2026-03-09",
+  "end": "2026-03-16"
+ },
+ "sql": "SELECT max(r.kw) AS value FROM (SELECT r.ts_utc, sum(r.kwh) * 4 AS kw FROM reading r WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ? GROUP BY r.ts_utc) r",
+ "columns": [
+  "value"
+ ],
+ "rows": [
+  [
+   436.72
+  ]
+ ],
+ "refusal": null
+}
