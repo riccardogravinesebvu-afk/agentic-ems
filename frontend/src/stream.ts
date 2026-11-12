@@ -116,8 +116,10 @@ function eventParser(onEvent: OnEvent): (chunk: string) => void {
 }
 
 /** A line for a time series, bars for a breakdown, nothing for a single value. */
-export function chartKind(columns: string[], rows: Row[]): "line" | "bar" | "none" {
+export function chartKind(columns: string[], rows: Row[]): "line" | "area" | "bar" | "none" {
   if (rows.length === 0) return "none"
+  // Tariff bands split one total over time, so they stack to it. Meters are never stacked: a parent holds its children.
+  if (columns.includes("bucket_start") && columns.includes("tariff_band") && !columns.includes("meter_id")) return "area"
   if (columns.includes("bucket_start")) return "line"
   if (columns.includes("meter_id") || columns.includes("tariff_band")) return "bar"
   return "none"

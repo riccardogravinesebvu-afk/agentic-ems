@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -290,9 +290,11 @@ export default function App() {
   )
 }
 
-function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; unit: string; metric: unknown }) {
+function Chart(props: { kind: "line" | "area" | "bar"; columns: string[]; rows: Row[]; unit: string; metric: unknown }) {
   const { kind, columns, rows, unit } = props
-  const { xName, data, series } = pivot(columns, rows)
+  const { xName, data: points, series } = pivot(columns, rows)
+  // A band with no row on a day used nothing that day (a Sunday has one band): 0, so the stack has no hole.
+  const data = kind === "area" ? points.map((p) => ({ ...Object.fromEntries(series.map((_, i) => [`s${i}`, 0])), ...p })) : points
   const formatKey = keyFormatter(columns, rows)
   const metric = typeof props.metric === "string" ? props.metric : "value"
   // shortcut: four colours that read on white (chart-1 is too light), repeated past four series; upgrade if a sample needs more.
@@ -309,7 +311,7 @@ function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; un
       {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
     </>
   )
-  const summary = `${kind === "line" ? "Line" : "Bar"} chart of ${metric}${unit ? ` in ${unit}` : ""} by ${xName}, ${rows.length} rows.`
+  const summary = `${{ line: "Line", area: "Stacked area", bar: "Bar" }[kind]} chart of ${metric}${unit ? ` in ${unit}` : ""} by ${xName}, ${rows.length} rows.`
 
   return (
     <Card>
@@ -336,6 +338,22 @@ function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; un
                   />
                 ))}
               </LineChart>
+            ) : kind === "area" ? (
+              <AreaChart accessibilityLayer data={data}>
+                {axes}
+                {keys.map((k) => (
+                  <Area
+                    key={k}
+                    dataKey={k}
+                    type="linear"
+                    stackId="total"
+                    stroke={`var(--color-${k})`}
+                    fill={`var(--color-${k})`}
+                    fillOpacity={0.6}
+                    isAnimationActive={false}
+                  />
+                ))}
+              </AreaChart>
             ) : (
               <BarChart accessibilityLayer data={data}>
                 {axes}

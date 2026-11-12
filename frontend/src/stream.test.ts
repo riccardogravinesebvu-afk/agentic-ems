@@ -69,6 +69,8 @@ describe("chartKind", () => {
     expect(chartKind(breakdownSample.columns!, breakdownSample.rows!)).toBe("bar")
     expect(chartKind(["tariff_band", "value"], [["test_band", 1]])).toBe("bar")
     expect(chartKind(["meter_id", "bucket_start", "value"], [["m", "2001-01-01", 1]])).toBe("line")
+    expect(chartKind(["bucket_start", "tariff_band", "value"], [["2001-01-01", "test_band", 1]])).toBe("area")
+    expect(chartKind(["meter_id", "bucket_start", "tariff_band", "value"], [["m", "2001-01-01", "test_band", 1]])).toBe("line")
     expect(chartKind(singleSample.columns!, singleSample.rows!)).toBe("none")
   })
 })
