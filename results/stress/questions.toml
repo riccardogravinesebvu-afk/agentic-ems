@@ -1,0 +1,75 @@
+# Twelve harder questions, written on 2026-11-12 after the benchmark, to see where the system breaks
+# and which chart the answer needs. Not part of the scored benchmark: no reference rows, read by hand.
+# `needs` is what a full answer takes; `chart` is the shape the answer would be drawn as.
+
+[[question]]
+id = "S1"
+text = "Compare the electricity cost of the four departments month by month, from November 2025 to October 2026."
+needs = "one request: cost, node site, breakdown department, grain month; 48 rows"
+chart = "four lines over twelve months"
+
+[[question]]
+id = "S2"
+text = "How did the plant's consumption split across tariff bands on each day of April 2026?"
+needs = "one request: consumption, site, by tariff band, grain day"
+chart = "stacked area over time"
+
+[[question]]
+id = "S3"
+text = "In June 2026, what share of the plant's electricity was not measured by any department meter?"
+needs = "site total and the four department totals, then a subtraction and a division"
+chart = "one number, or a two-part bar (metered, unmetered)"
+
+[[question]]
+id = "S4"
+text = "Show the plant's hourly consumption on 25 October 2026, the day the clocks went back. How many hours did that day have?"
+needs = "one request at grain hour; 25 buckets, the repeated hour kept as two"
+chart = "line with 25 points"
+
+[[question]]
+id = "S5"
+text = "What was the plant's peak demand in the first week of each month from January to June 2026?"
+needs = "six separate periods; one request cannot hold them and the cap is four tool calls"
+chart = "six bars"
+
+[[question]]
+id = "S6"
+text = "For Painting, show the daily cost split by tariff band in August 2026."
+needs = "one request: cost, node dept_c, by tariff band, grain day"
+chart = "stacked area over time"
+
+[[question]]
+id = "S7"
+text = "Which Welding machine's consumption changed the most between the first quarter and the third quarter of 2026, and by how much?"
+needs = "two requests (Q1, Q3) by machine under dept_b, then a difference per machine"
+chart = "grouped bars, two per machine"
+
+[[question]]
+id = "S8"
+text = "What was the plant's load factor in July 2026?"
+needs = "average load over peak load: consumption and peak, then arithmetic; not one of the four metrics"
+chart = "one number"
+
+[[question]]
+id = "S9"
+text = "What fraction of the plant's consumption in May 2026 did the solar array cover?"
+needs = "generation over consumption; the metrics cover consumption meters only"
+chart = "one number, or consumption and generation as two lines"
+
+[[question]]
+id = "S10"
+text = "Rank the four departments by their average electricity price per kWh from January to October 2026."
+needs = "cost over consumption per department: two requests and a division"
+chart = "four bars"
+
+[[question]]
+id = "S11"
+text = "Show the 15-minute load of Press 5 on the day in March 2026 when it used the most energy."
+needs = "two steps: find the day, then the 15-minute series for it (96 points)"
+chart = "line with 96 points"
+
+[[question]]
+id = "S12"
+text = "Quanta energia ha consumato ciascuna linea di Stamping per ogni pezzo prodotto, mese per mese, nel terzo trimestre 2026?"
+needs = "one request: energy_per_unit, node dept_a, breakdown line, grain month; the question is in Italian"
+chart = "three lines over three months, or grouped bars"

@@ -1,0 +1,973 @@
+{
+ "question": {
+  "id": "S6",
+  "text": "For Painting, show the daily cost split by tariff band in August 2026.",
+  "needs": "one request: cost, node dept_c, by tariff band, grain day",
+  "chart": "stacked area over time"
+ },
+ "record": {
+  "arm": "semantic",
+  "question": "For Painting, show the daily cost split by tariff band in August 2026.",
+  "messages": [
+   {
+    "role": "system",
+    "content": [
+     {
+      "type": "text",
+      "text": "You answer questions about the energy data of one manufacturing plant. You have 4 tool calls in total. The rows of your last successful query_metric call are your answer. If the question cannot be answered from the data, call refuse with the reason instead of returning rows. Do not ask the user questions."
+     },
+     {
+      "type": "text",
+      "text": "Metrics:\n- consumption_kwh (kWh): Energy drawn by the scope's meters, summed over the period. It can be split by tariff band.\n- peak_kw (kW): Highest coincident demand: per 15-minute interval, the scope's kWh summed and times 4, then the maximum over the period. It cannot be split by tariff band.\n- cost_eur (EUR): Energy cost: each interval's kWh times the tariff price of its band, summed. It can be split by tariff band.\n- energy_per_unit (kWh/unit): A line's own kWh divided by the units produced on it, as a ratio of totals per result cell. It cannot be split by tariff band.\nLevels: site, department, line, machine. Grains: 15min, hour, day, month, total.\nData from 2025-11-01 up to but excluding 2026-11-01.\nRules:\n- R1: A parent meter's reading includes all of its children, plus unmetered load and losses.\n- R2: A node's total is the node's own meter, never a sum of a lower level; a list of meters may never contain a meter twice, or a meter together with one of its ancestors, because the ancestor's reading already contains the descendant's energy, so the two together equal the ancestor's own reading.\n- R3: peak_kw is coincident: per interval, sum the kWh of the scope's meters and multiply by 4, then take the maximum.\n- R4: cost_eur prices each interval's kWh at the tariff of that interval's band.\n- R5: energy_per_unit is total kWh divided by total units, never an average of ratios; an order's units are spread evenly over its duration, so a period or grain boundary takes its share.\n- R6: energy_per_unit is null where no units were produced.\n- R7: The four metrics read consumption meters only; solar (generation) and battery (storage) are rejected.\n- R8: Reading timestamps are the UTC start of each 15-minute interval.\n- R9: Days, months and tariff bands use the plant's local-time columns.\n- R10: A period includes its start date and excludes its end date, in plant local dates.\n\nsite (Plant, site)\n  dept_a (Stamping, department)\n    line_a1 (Stamping line 1, line)\n      mach_a1_1 (Press 1, machine)\n      mach_a1_2 (Press 2, machine)\n      mach_a1_3 (Shear 1, machine)\n    line_a2 (Stamping line 2, line)\n      mach_a2_1 (Press 3, machine)\n      mach_a2_2 (Shear 2, machine)\n      mach_a2_3 (Shear 3, machine)\n    line_a3 (Stamping line 3, line)\n      mach_a3_1 (Press 4, machine)\n      mach_a3_2 (Press 5, machine)\n  dept_b (Welding, department)\n    line_b1 (Welding line 1, line)\n      mach_b1_1 (Welder 1, machine)\n      mach_b1_2 (Welder 2, machine)\n      mach_b1_3 (Robot 1, machine)\n    line_b2 (Welding line 2, line)\n      mach_b2_1 (Welder 3, machine)\n      mach_b2_2 (Robot 2, machine)\n      mach_b2_3 (Robot 3, machine)\n    line_b3 (Welding line 3, line)\n      mach_b3_1 (Welder 4, machine)\n      mach_b3_2 (Robot 4, machine)\n  dept_c (Painting, department)\n    line_c1 (Painting line 1, line)\n      mach_c1_1 (Oven 1, machine)\n      mach_c1_2 (Sprayer 1, machine)\n      mach_c1_3 (Sprayer 2, machine)\n    line_c2 (Painting line 2, line)\n      mach_c2_1 (Oven 2, machine)\n      mach_c2_2 (Sprayer 3, machine)\n  dept_d (Assembly, department)\n    line_d1 (Assembly line 1, line)\n      mach_d1_1 (Conveyor 1, machine)\n      mach_d1_2 (Robot 5, machine)\n      mach_d1_3 (Tester 1, machine)\n    line_d2 (Assembly line 2, line)\n      mach_d2_1 (Conveyor 2, machine)\n      mach_d2_2 (Tester 2, machine)\nbattery (Battery, storage)\nsolar (Solar array, generation)",
+      "cache_control": {
+       "type": "ephemeral"
+      }
+     }
+    ]
+   },
+   {
+    "role": "human",
+    "content": "For Painting, show the daily cost split by tariff band in August 2026."
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "id": "toolu_014gHQ57sHJEkefPa6U5Fvpg",
+      "caller": {
+       "type": "direct"
+      },
+      "input": {
+       "metric": "cost_eur",
+       "node": "dept_c",
+       "start": "2026-08-01",
+       "end": "2026-09-01",
+       "grain": "day",
+       "by_tariff_band": true
+      },
+      "name": "query_metric",
+      "type": "tool_use",
+      "toolset_name": null
+     }
+    ],
+    "tool_calls": [
+     {
+      "name": "query_metric",
+      "args": {
+       "metric": "cost_eur",
+       "node": "dept_c",
+       "start": "2026-08-01",
+       "end": "2026-09-01",
+       "grain": "day",
+       "by_tariff_band": true
+      },
+      "id": "toolu_014gHQ57sHJEkefPa6U5Fvpg",
+      "type": "tool_call"
+     }
+    ],
+    "response_metadata": {
+     "id": "msg_011CgyhFN19nzxokfiAaG3mo",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "tool_use",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2704,
+      "inference_geo": "global",
+      "input_tokens": 99,
+      "output_tokens": 178,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   },
+   {
+    "role": "tool",
+    "content": "bucket_start,tariff_band,value\n2026-08-01T00:00:00+02:00,F2,714.54816\n2026-08-01T00:00:00+02:00,F3,190.23440000000002\n2026-08-02T00:00:00+02:00,F3,486.03900000000004\n2026-08-03T00:00:00+02:00,F1,1275.8180399999999\n2026-08-03T00:00:00+02:00,F2,304.48151999999993\n2026-08-03T00:00:00+02:00,F3,195.1282\n2026-08-04T00:00:00+02:00,F1,1152.51164\n2026-08-04T00:00:00+02:00,F2,317.12544\n2026-08-04T00:00:00+02:00,F3,189.15500000000003\n2026-08-05T00:00:00+02:00,F1,1230.0080800000005\n2026-08-05T00:00:00+02:00,F2,320.79287999999997\n2026-08-05T00:00:00+02:00,F3,190.9482\n2026-08-06T00:00:00+02:00,F1,1190.83524\n2026-08-06T00:00:00+02:00,F2,312.02880000000005\n2026-08-06T00:00:00+02:00,F3,188.6542\n2026-08-07T00:00:00+02:00,F1,1186.0534000000002\n2026-08-07T00:00:00+02:00,F2,283.28904\n2026-08-07T00:00:00+02:00,F3,191.7532\n2026-08-08T00:00:00+02:00,F2,384.78359999999986\n2026-08-08T00:00:00+02:00,F3,162.294\n2026-08-09T00:00:00+02:00,F3,484.85979999999995\n2026-08-10T00:00:00+02:00,F1,308.5432\n2026-08-10T00:00:00+02:00,F2,121.34735999999998\n2026-08-10T00:00:00+02:00,F3,159.9172\n2026-08-11T00:00:00+02:00,F1,308.76916000000017\n2026-08-11T00:00:00+02:00,F2,122.40071999999998\n2026-08-11T00:00:00+02:00,F3,162.22479999999996\n2026-08-12T00:00:00+02:00,F1,310.76975999999996\n2026-08-12T00:00:00+02:00,F2,122.12448\n2026-08-12T00:00:00+02:00,F3,159.37880000000004\n2026-08-13T00:00:00+02:00,F1,311.82676\n2026-08-13T00:00:00+02:00,F2,119.95176000000001\n2026-08-13T00:00:00+02:00,F3,162.31540000000004\n2026-08-14T00:00:00+02:00,F1,311.09456000000006\n2026-08-14T00:00:00+02:00,F2,119.97287999999998\n2026-08-14T00:00:00+02:00,F3,160.981\n2026-08-15T00:00:00+02:00,F2,386.7328800000001\n2026-08-15T00:00:00+02:00,F3,160.42280000000002\n2026-08-16T00:00:00+02:00,F3,482.9709999999999\n2026-08-17T00:00:00+02:00,F1,311.18667999999997\n2026-08-17T00:00:00+02:00,F2,122.04432000000001\n2026-08-17T00:00:00+02:00,F3,160.85\n2026-08-18T00:00:00+02:00,F1,310.27248\n2026-08-18T00:00:00+02:00,F2,120.47448\n2026-08-18T00:00:00+02:00,F3,161.0882\n2026-08-19T00:00:00+02:00,F1,311.78616000000005\n2026-08-19T00:00:00+02:00,F2,120.91344\n2026-08-19T00:00:00+02:00,F3,161.63060000000002\n2026-08-20T00:00:00+02:00,F1,310.3394\n2026-08-20T00:00:00+02:00,F2,122.97287999999995\n78 rows in total, the first 50 shown",
+    "tool_call_id": "toolu_014gHQ57sHJEkefPa6U5Fvpg",
+    "status": "success"
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQSygUKEAgTGAI4AUIIdGhpbmtpbmcSDJc5MZ7hE1M9kuKPcRoMrGXe9WM82lf3qJNjIjBpXu8C0KKfmJHOZ/IrhO0jr58WL8woznVoa1tvjB0nbfPH5R33c4z2wuAbARpichUq5wTXYfaVZMH4NQPlVhC4fexDQDjkJVOYTO4OfJJKSxOsH/r8kg93aDRelXV/H+oOWc5QnMZZud5JSaxKFIp78HF4N0UuaNYh5lcUcmfYox3QlziP84JgF/uuqSEdCNaue/6lZQIC8qt6BncIDEocBADdCGLAFQRV4c+vnEUmGnRoKTdcKRTrzeIgssV6fkrG9KamIH4QOclKyYnr9QNgKs8YIKSkHs/V4pXT9/iF4T/LKcsvj/q41qJM/BKxfsv8yViga/ldnaEtMUctwqll529MBxMHq3N1tVr41LdAWnXeZZwXWwmdyJAa9+QMWQ2of3/hQfWSLOzHpLj3oiZUj9AnuIHnWk6e3k56InSiWDM02sJkKv4V2Vexe8YQdzJDZQECQwUd5VuaYkOcDNx1DYw93WwXT3qgWGRKCYLjBwS1pElcnVa3HJN9ba5TrAv082FNwdTotXf4jNTiKVBXrihulHLgcwOe2ZaGkPI/X2TQhlNLtwoCAGoy1oeOu9F7IBPfP7g0OQ7VYL21AIxpMckLkJRVI6NUbBZmr3mP/sxQrPapMlY03QI4oeMSOVsDZrY1xY0JoMOaqc60X7luIccfeWc0H3umYOw7zLqhPNrgtK71qCbMI0Cy88N/0Ft8x0ckdVaLscnPuu9pJLn7SB0HopuTngtni3caSAsVj95lAKCtgJnbFL9ZmeGywJXU788nDeGV79rgbHxtgYlVVuYqweDcGWrRiQZ0iqUJE0D7MbaAmCQoV3O3lNmpMb1dBw7Ntr0gb2hZdklQVSSs8sRI3NRxUXG3GPfqx2hOO0H+2aIXIXsiLQgYAQ==",
+      "thinking": "I'm noting that only 50 of the 78 results are displayed, but the rows I have are what the answer needs, so I'll keep it brief.\n\n",
+      "type": "thinking"
+     },
+     {
+      "text": "I pulled the daily cost for Painting (dept_c) in August 2026, split by tariff band. The full result has 78 rows (one per day per band). Only the first 50 rows, covering 1\u201320 August, were shown to me. I can't quote figures for 20\u201331 August.\n\n**What the shown rows say (1\u201320 August):**\n- **Weekdays** have all three bands (F1, F2 and F3). **Saturdays** have only F2 and F3, and **Sundays** have only F3. That's why there are fewer than 93 rows.\n- **3\u20137 August cost much more** than the rest of the month. F1 alone was about \u20ac1,150\u20131,276 a day.\n- **From 10 August, weekday costs drop sharply**, to roughly \u20ac308\u2013312 in F1, \u20ac120\u2013123 in F2 and \u20ac159\u2013162 in F3. This could be the August holiday shutdown, but the data doesn't show the cause.\n- **Sundays** cost about \u20ac483\u2013486, all in F3.\n- **Saturdays:** 1 August cost about \u20ac714.55 in F2 and \u20ac190.23 in F3. On the later Saturdays (8 and 15 August), F2 was about \u20ac385\u2013387 and F3 about \u20ac160\u2013162.\n\nSome sample days:\n\n| Day | F1 (\u20ac) | F2 (\u20ac) | F3 (\u20ac) |\n|---|---|---|---|\n| Mon 3 Aug | 1,275.82 | 304.48 | 195.13 |\n| Sun 9 Aug | \u2013 | \u2013 | 484.86 |\n| Mon 10 Aug | 308.54 | 121.35 | 159.92 |\n| Sat 15 Aug | \u2013 | 386.73 | 160.42 |\n| Wed 19 Aug | 311.79 | 120.91 | 161.63 |\n\nThe cost is calculated from Painting's own department meter.",
+      "type": "text"
+     }
+    ],
+    "tool_calls": [],
+    "response_metadata": {
+     "id": "msg_011CgyhFZ5fVP3oQKyEwq586",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2704,
+      "inference_geo": "global",
+      "input_tokens": 1649,
+      "output_tokens": 622,
+      "output_tokens_details": {
+       "thinking_tokens": 34
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "name": "query_metric",
+    "args": {
+     "metric": "cost_eur",
+     "node": "dept_c",
+     "start": "2026-08-01",
+     "end": "2026-09-01",
+     "grain": "day",
+     "by_tariff_band": true
+    },
+    "ok": true,
+    "content": "bucket_start,tariff_band,value\n2026-08-01T00:00:00+02:00,F2,714.54816\n2026-08-01T00:00:00+02:00,F3,190.23440000000002\n2026-08-02T00:00:00+02:00,F3,486.03900000000004\n2026-08-03T00:00:00+02:00,F1,1275.8180399999999\n2026-08-03T00:00:00+02:00,F2,304.48151999999993\n2026-08-03T00:00:00+02:00,F3,195.1282\n2026-08-04T00:00:00+02:00,F1,1152.51164\n2026-08-04T00:00:00+02:00,F2,317.12544\n2026-08-04T00:00:00+02:00,F3,189.15500000000003\n2026-08-05T00:00:00+02:00,F1,1230.0080800000005\n2026-08-05T00:00:00+02:00,F2,320.79287999999997\n2026-08-05T00:00:00+02:00,F3,190.9482\n2026-08-06T00:00:00+02:00,F1,1190.83524\n2026-08-06T00:00:00+02:00,F2,312.02880000000005\n2026-08-06T00:00:00+02:00,F3,188.6542\n2026-08-07T00:00:00+02:00,F1,1186.0534000000002\n2026-08-07T00:00:00+02:00,F2,283.28904\n2026-08-07T00:00:00+02:00,F3,191.7532\n2026-08-08T00:00:00+02:00,F2,384.78359999999986\n2026-08-08T00:00:00+02:00,F3,162.294\n2026-08-09T00:00:00+02:00,F3,484.85979999999995\n2026-08-10T00:00:00+02:00,F1,308.5432\n2026-08-10T00:00:00+02:00,F2,121.34735999999998\n2026-08-10T00:00:00+02:00,F3,159.9172\n2026-08-11T00:00:00+02:00,F1,308.76916000000017\n2026-08-11T00:00:00+02:00,F2,122.40071999999998\n2026-08-11T00:00:00+02:00,F3,162.22479999999996\n2026-08-12T00:00:00+02:00,F1,310.76975999999996\n2026-08-12T00:00:00+02:00,F2,122.12448\n2026-08-12T00:00:00+02:00,F3,159.37880000000004\n2026-08-13T00:00:00+02:00,F1,311.82676\n2026-08-13T00:00:00+02:00,F2,119.95176000000001\n2026-08-13T00:00:00+02:00,F3,162.31540000000004\n2026-08-14T00:00:00+02:00,F1,311.09456000000006\n2026-08-14T00:00:00+02:00,F2,119.97287999999998\n2026-08-14T00:00:00+02:00,F3,160.981\n2026-08-15T00:00:00+02:00,F2,386.7328800000001\n2026-08-15T00:00:00+02:00,F3,160.42280000000002\n2026-08-16T00:00:00+02:00,F3,482.9709999999999\n2026-08-17T00:00:00+02:00,F1,311.18667999999997\n2026-08-17T00:00:00+02:00,F2,122.04432000000001\n2026-08-17T00:00:00+02:00,F3,160.85\n2026-08-18T00:00:00+02:00,F1,310.27248\n2026-08-18T00:00:00+02:00,F2,120.47448\n2026-08-18T00:00:00+02:00,F3,161.0882\n2026-08-19T00:00:00+02:00,F1,311.78616000000005\n2026-08-19T00:00:00+02:00,F2,120.91344\n2026-08-19T00:00:00+02:00,F3,161.63060000000002\n2026-08-20T00:00:00+02:00,F1,310.3394\n2026-08-20T00:00:00+02:00,F2,122.97287999999995\n78 rows in total, the first 50 shown",
+    "sql": "SELECT r.day_start AS bucket_start, r.tariff_band AS tariff_band, sum(r.kwh * t.price_eur_per_kwh) AS value FROM reading r JOIN tariff t ON t.tariff_band = r.tariff_band WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ? GROUP BY r.day_start, r.tariff_band ORDER BY min(min(r.ts_utc)) OVER (PARTITION BY r.day_start), r.tariff_band"
+   }
+  ],
+  "final": "rows",
+  "columns": [
+   "bucket_start",
+   "tariff_band",
+   "value"
+  ],
+  "rows": [
+   [
+    "2026-08-01T00:00:00+02:00",
+    "F2",
+    714.54816
+   ],
+   [
+    "2026-08-01T00:00:00+02:00",
+    "F3",
+    190.23440000000002
+   ],
+   [
+    "2026-08-02T00:00:00+02:00",
+    "F3",
+    486.03900000000004
+   ],
+   [
+    "2026-08-03T00:00:00+02:00",
+    "F1",
+    1275.8180399999999
+   ],
+   [
+    "2026-08-03T00:00:00+02:00",
+    "F2",
+    304.48151999999993
+   ],
+   [
+    "2026-08-03T00:00:00+02:00",
+    "F3",
+    195.1282
+   ],
+   [
+    "2026-08-04T00:00:00+02:00",
+    "F1",
+    1152.51164
+   ],
+   [
+    "2026-08-04T00:00:00+02:00",
+    "F2",
+    317.12544
+   ],
+   [
+    "2026-08-04T00:00:00+02:00",
+    "F3",
+    189.15500000000003
+   ],
+   [
+    "2026-08-05T00:00:00+02:00",
+    "F1",
+    1230.0080800000005
+   ],
+   [
+    "2026-08-05T00:00:00+02:00",
+    "F2",
+    320.79287999999997
+   ],
+   [
+    "2026-08-05T00:00:00+02:00",
+    "F3",
+    190.9482
+   ],
+   [
+    "2026-08-06T00:00:00+02:00",
+    "F1",
+    1190.83524
+   ],
+   [
+    "2026-08-06T00:00:00+02:00",
+    "F2",
+    312.02880000000005
+   ],
+   [
+    "2026-08-06T00:00:00+02:00",
+    "F3",
+    188.6542
+   ],
+   [
+    "2026-08-07T00:00:00+02:00",
+    "F1",
+    1186.0534000000002
+   ],
+   [
+    "2026-08-07T00:00:00+02:00",
+    "F2",
+    283.28904
+   ],
+   [
+    "2026-08-07T00:00:00+02:00",
+    "F3",
+    191.7532
+   ],
+   [
+    "2026-08-08T00:00:00+02:00",
+    "F2",
+    384.78359999999986
+   ],
+   [
+    "2026-08-08T00:00:00+02:00",
+    "F3",
+    162.294
+   ],
+   [
+    "2026-08-09T00:00:00+02:00",
+    "F3",
+    484.85979999999995
+   ],
+   [
+    "2026-08-10T00:00:00+02:00",
+    "F1",
+    308.5432
+   ],
+   [
+    "2026-08-10T00:00:00+02:00",
+    "F2",
+    121.34735999999998
+   ],
+   [
+    "2026-08-10T00:00:00+02:00",
+    "F3",
+    159.9172
+   ],
+   [
+    "2026-08-11T00:00:00+02:00",
+    "F1",
+    308.76916000000017
+   ],
+   [
+    "2026-08-11T00:00:00+02:00",
+    "F2",
+    122.40071999999998
+   ],
+   [
+    "2026-08-11T00:00:00+02:00",
+    "F3",
+    162.22479999999996
+   ],
+   [
+    "2026-08-12T00:00:00+02:00",
+    "F1",
+    310.76975999999996
+   ],
+   [
+    "2026-08-12T00:00:00+02:00",
+    "F2",
+    122.12448
+   ],
+   [
+    "2026-08-12T00:00:00+02:00",
+    "F3",
+    159.37880000000004
+   ],
+   [
+    "2026-08-13T00:00:00+02:00",
+    "F1",
+    311.82676
+   ],
+   [
+    "2026-08-13T00:00:00+02:00",
+    "F2",
+    119.95176000000001
+   ],
+   [
+    "2026-08-13T00:00:00+02:00",
+    "F3",
+    162.31540000000004
+   ],
+   [
+    "2026-08-14T00:00:00+02:00",
+    "F1",
+    311.09456000000006
+   ],
+   [
+    "2026-08-14T00:00:00+02:00",
+    "F2",
+    119.97287999999998
+   ],
+   [
+    "2026-08-14T00:00:00+02:00",
+    "F3",
+    160.981
+   ],
+   [
+    "2026-08-15T00:00:00+02:00",
+    "F2",
+    386.7328800000001
+   ],
+   [
+    "2026-08-15T00:00:00+02:00",
+    "F3",
+    160.42280000000002
+   ],
+   [
+    "2026-08-16T00:00:00+02:00",
+    "F3",
+    482.9709999999999
+   ],
+   [
+    "2026-08-17T00:00:00+02:00",
+    "F1",
+    311.18667999999997
+   ],
+   [
+    "2026-08-17T00:00:00+02:00",
+    "F2",
+    122.04432000000001
+   ],
+   [
+    "2026-08-17T00:00:00+02:00",
+    "F3",
+    160.85
+   ],
+   [
+    "2026-08-18T00:00:00+02:00",
+    "F1",
+    310.27248
+   ],
+   [
+    "2026-08-18T00:00:00+02:00",
+    "F2",
+    120.47448
+   ],
+   [
+    "2026-08-18T00:00:00+02:00",
+    "F3",
+    161.0882
+   ],
+   [
+    "2026-08-19T00:00:00+02:00",
+    "F1",
+    311.78616000000005
+   ],
+   [
+    "2026-08-19T00:00:00+02:00",
+    "F2",
+    120.91344
+   ],
+   [
+    "2026-08-19T00:00:00+02:00",
+    "F3",
+    161.63060000000002
+   ],
+   [
+    "2026-08-20T00:00:00+02:00",
+    "F1",
+    310.3394
+   ],
+   [
+    "2026-08-20T00:00:00+02:00",
+    "F2",
+    122.97287999999995
+   ],
+   [
+    "2026-08-20T00:00:00+02:00",
+    "F3",
+    162.75559999999996
+   ],
+   [
+    "2026-08-21T00:00:00+02:00",
+    "F1",
+    309.41371999999996
+   ],
+   [
+    "2026-08-21T00:00:00+02:00",
+    "F2",
+    120.89831999999998
+   ],
+   [
+    "2026-08-21T00:00:00+02:00",
+    "F3",
+    162.35620000000003
+   ],
+   [
+    "2026-08-22T00:00:00+02:00",
+    "F2",
+    387.5116799999999
+   ],
+   [
+    "2026-08-22T00:00:00+02:00",
+    "F3",
+    163.40439999999995
+   ],
+   [
+    "2026-08-23T00:00:00+02:00",
+    "F3",
+    485.7872
+   ],
+   [
+    "2026-08-24T00:00:00+02:00",
+    "F1",
+    1251.8027199999997
+   ],
+   [
+    "2026-08-24T00:00:00+02:00",
+    "F2",
+    286.4615999999999
+   ],
+   [
+    "2026-08-24T00:00:00+02:00",
+    "F3",
+    192.40440000000004
+   ],
+   [
+    "2026-08-25T00:00:00+02:00",
+    "F1",
+    1248.7325200000002
+   ],
+   [
+    "2026-08-25T00:00:00+02:00",
+    "F2",
+    284.61912000000007
+   ],
+   [
+    "2026-08-25T00:00:00+02:00",
+    "F3",
+    191.366
+   ],
+   [
+    "2026-08-26T00:00:00+02:00",
+    "F1",
+    1176.8226400000005
+   ],
+   [
+    "2026-08-26T00:00:00+02:00",
+    "F2",
+    322.8852
+   ],
+   [
+    "2026-08-26T00:00:00+02:00",
+    "F3",
+    193.07040000000003
+   ],
+   [
+    "2026-08-27T00:00:00+02:00",
+    "F1",
+    1242.6649200000002
+   ],
+   [
+    "2026-08-27T00:00:00+02:00",
+    "F2",
+    252.22247999999996
+   ],
+   [
+    "2026-08-27T00:00:00+02:00",
+    "F3",
+    192.75900000000004
+   ],
+   [
+    "2026-08-28T00:00:00+02:00",
+    "F1",
+    1249.3857600000003
+   ],
+   [
+    "2026-08-28T00:00:00+02:00",
+    "F2",
+    336.948
+   ],
+   [
+    "2026-08-28T00:00:00+02:00",
+    "F3",
+    190.7042
+   ],
+   [
+    "2026-08-29T00:00:00+02:00",
+    "F2",
+    757.0915199999997
+   ],
+   [
+    "2026-08-29T00:00:00+02:00",
+    "F3",
+    186.14720000000005
+   ],
+   [
+    "2026-08-30T00:00:00+02:00",
+    "F3",
+    483.5636
+   ],
+   [
+    "2026-08-31T00:00:00+02:00",
+    "F1",
+    1256.6492400000004
+   ],
+   [
+    "2026-08-31T00:00:00+02:00",
+    "F2",
+    288.70968
+   ],
+   [
+    "2026-08-31T00:00:00+02:00",
+    "F3",
+    189.3616
+   ]
+  ],
+  "successful_results": [
+   [
+    [
+     "bucket_start",
+     "tariff_band",
+     "value"
+    ],
+    [
+     [
+      "2026-08-01T00:00:00+02:00",
+      "F2",
+      714.54816
+     ],
+     [
+      "2026-08-01T00:00:00+02:00",
+      "F3",
+      190.23440000000002
+     ],
+     [
+      "2026-08-02T00:00:00+02:00",
+      "F3",
+      486.03900000000004
+     ],
+     [
+      "2026-08-03T00:00:00+02:00",
+      "F1",
+      1275.8180399999999
+     ],
+     [
+      "2026-08-03T00:00:00+02:00",
+      "F2",
+      304.48151999999993
+     ],
+     [
+      "2026-08-03T00:00:00+02:00",
+      "F3",
+      195.1282
+     ],
+     [
+      "2026-08-04T00:00:00+02:00",
+      "F1",
+      1152.51164
+     ],
+     [
+      "2026-08-04T00:00:00+02:00",
+      "F2",
+      317.12544
+     ],
+     [
+      "2026-08-04T00:00:00+02:00",
+      "F3",
+      189.15500000000003
+     ],
+     [
+      "2026-08-05T00:00:00+02:00",
+      "F1",
+      1230.0080800000005
+     ],
+     [
+      "2026-08-05T00:00:00+02:00",
+      "F2",
+      320.79287999999997
+     ],
+     [
+      "2026-08-05T00:00:00+02:00",
+      "F3",
+      190.9482
+     ],
+     [
+      "2026-08-06T00:00:00+02:00",
+      "F1",
+      1190.83524
+     ],
+     [
+      "2026-08-06T00:00:00+02:00",
+      "F2",
+      312.02880000000005
+     ],
+     [
+      "2026-08-06T00:00:00+02:00",
+      "F3",
+      188.6542
+     ],
+     [
+      "2026-08-07T00:00:00+02:00",
+      "F1",
+      1186.0534000000002
+     ],
+     [
+      "2026-08-07T00:00:00+02:00",
+      "F2",
+      283.28904
+     ],
+     [
+      "2026-08-07T00:00:00+02:00",
+      "F3",
+      191.7532
+     ],
+     [
+      "2026-08-08T00:00:00+02:00",
+      "F2",
+      384.78359999999986
+     ],
+     [
+      "2026-08-08T00:00:00+02:00",
+      "F3",
+      162.294
+     ],
+     [
+      "2026-08-09T00:00:00+02:00",
+      "F3",
+      484.85979999999995
+     ],
+     [
+      "2026-08-10T00:00:00+02:00",
+      "F1",
+      308.5432
+     ],
+     [
+      "2026-08-10T00:00:00+02:00",
+      "F2",
+      121.34735999999998
+     ],
+     [
+      "2026-08-10T00:00:00+02:00",
+      "F3",
+      159.9172
+     ],
+     [
+      "2026-08-11T00:00:00+02:00",
+      "F1",
+      308.76916000000017
+     ],
+     [
+      "2026-08-11T00:00:00+02:00",
+      "F2",
+      122.40071999999998
+     ],
+     [
+      "2026-08-11T00:00:00+02:00",
+      "F3",
+      162.22479999999996
+     ],
+     [
+      "2026-08-12T00:00:00+02:00",
+      "F1",
+      310.76975999999996
+     ],
+     [
+      "2026-08-12T00:00:00+02:00",
+      "F2",
+      122.12448
+     ],
+     [
+      "2026-08-12T00:00:00+02:00",
+      "F3",
+      159.37880000000004
+     ],
+     [
+      "2026-08-13T00:00:00+02:00",
+      "F1",
+      311.82676
+     ],
+     [
+      "2026-08-13T00:00:00+02:00",
+      "F2",
+      119.95176000000001
+     ],
+     [
+      "2026-08-13T00:00:00+02:00",
+      "F3",
+      162.31540000000004
+     ],
+     [
+      "2026-08-14T00:00:00+02:00",
+      "F1",
+      311.09456000000006
+     ],
+     [
+      "2026-08-14T00:00:00+02:00",
+      "F2",
+      119.97287999999998
+     ],
+     [
+      "2026-08-14T00:00:00+02:00",
+      "F3",
+      160.981
+     ],
+     [
+      "2026-08-15T00:00:00+02:00",
+      "F2",
+      386.7328800000001
+     ],
+     [
+      "2026-08-15T00:00:00+02:00",
+      "F3",
+      160.42280000000002
+     ],
+     [
+      "2026-08-16T00:00:00+02:00",
+      "F3",
+      482.9709999999999
+     ],
+     [
+      "2026-08-17T00:00:00+02:00",
+      "F1",
+      311.18667999999997
+     ],
+     [
+      "2026-08-17T00:00:00+02:00",
+      "F2",
+      122.04432000000001
+     ],
+     [
+      "2026-08-17T00:00:00+02:00",
+      "F3",
+      160.85
+     ],
+     [
+      "2026-08-18T00:00:00+02:00",
+      "F1",
+      310.27248
+     ],
+     [
+      "2026-08-18T00:00:00+02:00",
+      "F2",
+      120.47448
+     ],
+     [
+      "2026-08-18T00:00:00+02:00",
+      "F3",
+      161.0882
+     ],
+     [
+      "2026-08-19T00:00:00+02:00",
+      "F1",
+      311.78616000000005
+     ],
+     [
+      "2026-08-19T00:00:00+02:00",
+      "F2",
+      120.91344
+     ],
+     [
+      "2026-08-19T00:00:00+02:00",
+      "F3",
+      161.63060000000002
+     ],
+     [
+      "2026-08-20T00:00:00+02:00",
+      "F1",
+      310.3394
+     ],
+     [
+      "2026-08-20T00:00:00+02:00",
+      "F2",
+      122.97287999999995
+     ],
+     [
+      "2026-08-20T00:00:00+02:00",
+      "F3",
+      162.75559999999996
+     ],
+     [
+      "2026-08-21T00:00:00+02:00",
+      "F1",
+      309.41371999999996
+     ],
+     [
+      "2026-08-21T00:00:00+02:00",
+      "F2",
+      120.89831999999998
+     ],
+     [
+      "2026-08-21T00:00:00+02:00",
+      "F3",
+      162.35620000000003
+     ],
+     [
+      "2026-08-22T00:00:00+02:00",
+      "F2",
+      387.5116799999999
+     ],
+     [
+      "2026-08-22T00:00:00+02:00",
+      "F3",
+      163.40439999999995
+     ],
+     [
+      "2026-08-23T00:00:00+02:00",
+      "F3",
+      485.7872
+     ],
+     [
+      "2026-08-24T00:00:00+02:00",
+      "F1",
+      1251.8027199999997
+     ],
+     [
+      "2026-08-24T00:00:00+02:00",
+      "F2",
+      286.4615999999999
+     ],
+     [
+      "2026-08-24T00:00:00+02:00",
+      "F3",
+      192.40440000000004
+     ],
+     [
+      "2026-08-25T00:00:00+02:00",
+      "F1",
+      1248.7325200000002
+     ],
+     [
+      "2026-08-25T00:00:00+02:00",
+      "F2",
+      284.61912000000007
+     ],
+     [
+      "2026-08-25T00:00:00+02:00",
+      "F3",
+      191.366
+     ],
+     [
+      "2026-08-26T00:00:00+02:00",
+      "F1",
+      1176.8226400000005
+     ],
+     [
+      "2026-08-26T00:00:00+02:00",
+      "F2",
+      322.8852
+     ],
+     [
+      "2026-08-26T00:00:00+02:00",
+      "F3",
+      193.07040000000003
+     ],
+     [
+      "2026-08-27T00:00:00+02:00",
+      "F1",
+      1242.6649200000002
+     ],
+     [
+      "2026-08-27T00:00:00+02:00",
+      "F2",
+      252.22247999999996
+     ],
+     [
+      "2026-08-27T00:00:00+02:00",
+      "F3",
+      192.75900000000004
+     ],
+     [
+      "2026-08-28T00:00:00+02:00",
+      "F1",
+      1249.3857600000003
+     ],
+     [
+      "2026-08-28T00:00:00+02:00",
+      "F2",
+      336.948
+     ],
+     [
+      "2026-08-28T00:00:00+02:00",
+      "F3",
+      190.7042
+     ],
+     [
+      "2026-08-29T00:00:00+02:00",
+      "F2",
+      757.0915199999997
+     ],
+     [
+      "2026-08-29T00:00:00+02:00",
+      "F3",
+      186.14720000000005
+     ],
+     [
+      "2026-08-30T00:00:00+02:00",
+      "F3",
+      483.5636
+     ],
+     [
+      "2026-08-31T00:00:00+02:00",
+      "F1",
+      1256.6492400000004
+     ],
+     [
+      "2026-08-31T00:00:00+02:00",
+      "F2",
+      288.70968
+     ],
+     [
+      "2026-08-31T00:00:00+02:00",
+      "F3",
+      189.3616
+     ]
+    ]
+   ]
+  ],
+  "refusal_reason": null,
+  "cause": null,
+  "usage": {
+   "input_tokens": 1748,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 5408,
+   "output_tokens": 800
+  },
+  "served_model": "claude-opus-5-5"
+ },
+ "cost_eur": 0.0240736
+}

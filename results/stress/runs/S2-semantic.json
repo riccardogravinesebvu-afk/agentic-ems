@@ -1,0 +1,970 @@
+{
+ "question": {
+  "id": "S2",
+  "text": "How did the plant's consumption split across tariff bands on each day of April 2026?",
+  "needs": "one request: consumption, site, by tariff band, grain day",
+  "chart": "stacked area over time"
+ },
+ "record": {
+  "arm": "semantic",
+  "question": "How did the plant's consumption split across tariff bands on each day of April 2026?",
+  "messages": [
+   {
+    "role": "system",
+    "content": [
+     {
+      "type": "text",
+      "text": "You answer questions about the energy data of one manufacturing plant. You have 4 tool calls in total. The rows of your last successful query_metric call are your answer. If the question cannot be answered from the data, call refuse with the reason instead of returning rows. Do not ask the user questions."
+     },
+     {
+      "type": "text",
+      "text": "Metrics:\n- consumption_kwh (kWh): Energy drawn by the scope's meters, summed over the period. It can be split by tariff band.\n- peak_kw (kW): Highest coincident demand: per 15-minute interval, the scope's kWh summed and times 4, then the maximum over the period. It cannot be split by tariff band.\n- cost_eur (EUR): Energy cost: each interval's kWh times the tariff price of its band, summed. It can be split by tariff band.\n- energy_per_unit (kWh/unit): A line's own kWh divided by the units produced on it, as a ratio of totals per result cell. It cannot be split by tariff band.\nLevels: site, department, line, machine. Grains: 15min, hour, day, month, total.\nData from 2025-11-01 up to but excluding 2026-11-01.\nRules:\n- R1: A parent meter's reading includes all of its children, plus unmetered load and losses.\n- R2: A node's total is the node's own meter, never a sum of a lower level; a list of meters may never contain a meter twice, or a meter together with one of its ancestors, because the ancestor's reading already contains the descendant's energy, so the two together equal the ancestor's own reading.\n- R3: peak_kw is coincident: per interval, sum the kWh of the scope's meters and multiply by 4, then take the maximum.\n- R4: cost_eur prices each interval's kWh at the tariff of that interval's band.\n- R5: energy_per_unit is total kWh divided by total units, never an average of ratios; an order's units are spread evenly over its duration, so a period or grain boundary takes its share.\n- R6: energy_per_unit is null where no units were produced.\n- R7: The four metrics read consumption meters only; solar (generation) and battery (storage) are rejected.\n- R8: Reading timestamps are the UTC start of each 15-minute interval.\n- R9: Days, months and tariff bands use the plant's local-time columns.\n- R10: A period includes its start date and excludes its end date, in plant local dates.\n\nsite (Plant, site)\n  dept_a (Stamping, department)\n    line_a1 (Stamping line 1, line)\n      mach_a1_1 (Press 1, machine)\n      mach_a1_2 (Press 2, machine)\n      mach_a1_3 (Shear 1, machine)\n    line_a2 (Stamping line 2, line)\n      mach_a2_1 (Press 3, machine)\n      mach_a2_2 (Shear 2, machine)\n      mach_a2_3 (Shear 3, machine)\n    line_a3 (Stamping line 3, line)\n      mach_a3_1 (Press 4, machine)\n      mach_a3_2 (Press 5, machine)\n  dept_b (Welding, department)\n    line_b1 (Welding line 1, line)\n      mach_b1_1 (Welder 1, machine)\n      mach_b1_2 (Welder 2, machine)\n      mach_b1_3 (Robot 1, machine)\n    line_b2 (Welding line 2, line)\n      mach_b2_1 (Welder 3, machine)\n      mach_b2_2 (Robot 2, machine)\n      mach_b2_3 (Robot 3, machine)\n    line_b3 (Welding line 3, line)\n      mach_b3_1 (Welder 4, machine)\n      mach_b3_2 (Robot 4, machine)\n  dept_c (Painting, department)\n    line_c1 (Painting line 1, line)\n      mach_c1_1 (Oven 1, machine)\n      mach_c1_2 (Sprayer 1, machine)\n      mach_c1_3 (Sprayer 2, machine)\n    line_c2 (Painting line 2, line)\n      mach_c2_1 (Oven 2, machine)\n      mach_c2_2 (Sprayer 3, machine)\n  dept_d (Assembly, department)\n    line_d1 (Assembly line 1, line)\n      mach_d1_1 (Conveyor 1, machine)\n      mach_d1_2 (Robot 5, machine)\n      mach_d1_3 (Tester 1, machine)\n    line_d2 (Assembly line 2, line)\n      mach_d2_1 (Conveyor 2, machine)\n      mach_d2_2 (Tester 2, machine)\nbattery (Battery, storage)\nsolar (Solar array, generation)",
+      "cache_control": {
+       "type": "ephemeral"
+      }
+     }
+    ]
+   },
+   {
+    "role": "human",
+    "content": "How did the plant's consumption split across tariff bands on each day of April 2026?"
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "id": "toolu_017MDpbGEk6UvyNYSKBx3F2Y",
+      "caller": {
+       "type": "direct"
+      },
+      "input": {
+       "metric": "consumption_kwh",
+       "start": "2026-04-01",
+       "end": "2026-05-01",
+       "grain": "day",
+       "by_tariff_band": true
+      },
+      "name": "query_metric",
+      "type": "tool_use",
+      "toolset_name": null
+     }
+    ],
+    "tool_calls": [
+     {
+      "name": "query_metric",
+      "args": {
+       "metric": "consumption_kwh",
+       "start": "2026-04-01",
+       "end": "2026-05-01",
+       "grain": "day",
+       "by_tariff_band": true
+      },
+      "id": "toolu_017MDpbGEk6UvyNYSKBx3F2Y",
+      "type": "tool_call"
+     }
+    ],
+    "response_metadata": {
+     "id": "msg_011Cgyh6g4MwbJu9i9GjviCW",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "tool_use",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 2704
+      },
+      "cache_creation_input_tokens": 2704,
+      "cache_read_input_tokens": 0,
+      "inference_geo": "global",
+      "input_tokens": 101,
+      "output_tokens": 156,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   },
+   {
+    "role": "tool",
+    "content": "bucket_start,tariff_band,value\n2026-04-01T00:00:00+02:00,F1,16266.283999999998\n2026-04-01T00:00:00+02:00,F2,6301.322\n2026-04-01T00:00:00+02:00,F3,5521.218000000002\n2026-04-02T00:00:00+02:00,F1,16629.069000000003\n2026-04-02T00:00:00+02:00,F2,6355.889\n2026-04-02T00:00:00+02:00,F3,5617.722999999999\n2026-04-03T00:00:00+02:00,F1,16044.904000000002\n2026-04-03T00:00:00+02:00,F2,6143.1089999999995\n2026-04-03T00:00:00+02:00,F3,5347.99\n2026-04-04T00:00:00+02:00,F2,8344.112000000001\n2026-04-04T00:00:00+02:00,F3,4643.345000000001\n2026-04-05T00:00:00+02:00,F3,6274.802000000002\n2026-04-06T00:00:00+02:00,F1,16048.949\n2026-04-06T00:00:00+02:00,F2,6492.507\n2026-04-06T00:00:00+02:00,F3,3511.1579999999994\n2026-04-07T00:00:00+02:00,F1,16461.396999999997\n2026-04-07T00:00:00+02:00,F2,6228.974999999999\n2026-04-07T00:00:00+02:00,F3,5606.165999999999\n2026-04-08T00:00:00+02:00,F1,15781.400000000003\n2026-04-08T00:00:00+02:00,F2,6472.5289999999995\n2026-04-08T00:00:00+02:00,F3,5571.706999999999\n2026-04-09T00:00:00+02:00,F1,16536.135\n2026-04-09T00:00:00+02:00,F2,6253.902000000001\n2026-04-09T00:00:00+02:00,F3,5401.523\n2026-04-10T00:00:00+02:00,F1,16564.487999999998\n2026-04-10T00:00:00+02:00,F2,6282.384000000001\n2026-04-10T00:00:00+02:00,F3,5647.234\n2026-04-11T00:00:00+02:00,F2,9103.603999999998\n2026-04-11T00:00:00+02:00,F3,5001.043000000001\n2026-04-12T00:00:00+02:00,F3,6275.435000000002\n2026-04-13T00:00:00+02:00,F1,16339.260999999999\n2026-04-13T00:00:00+02:00,F2,6170.842\n2026-04-13T00:00:00+02:00,F3,3435.521\n2026-04-14T00:00:00+02:00,F1,16524.192\n2026-04-14T00:00:00+02:00,F2,6033.89\n2026-04-14T00:00:00+02:00,F3,5648.853000000002\n2026-04-15T00:00:00+02:00,F1,16643.873999999996\n2026-04-15T00:00:00+02:00,F2,6532.208\n2026-04-15T00:00:00+02:00,F3,5473.044\n2026-04-16T00:00:00+02:00,F1,16227.748000000003\n2026-04-16T00:00:00+02:00,F2,6231.685000000001\n2026-04-16T00:00:00+02:00,F3,5672.403\n2026-04-17T00:00:00+02:00,F1,16224.517000000003\n2026-04-17T00:00:00+02:00,F2,6627.581999999999\n2026-04-17T00:00:00+02:00,F3,5722.6630000000005\n2026-04-18T00:00:00+02:00,F2,8788.603999999998\n2026-04-18T00:00:00+02:00,F3,4444.396000000001\n2026-04-19T00:00:00+02:00,F3,6278.068999999998\n2026-04-20T00:00:00+02:00,F1,16277.252000000004\n2026-04-20T00:00:00+02:00,F2,6160.175\n78 rows in total, the first 50 shown",
+    "tool_call_id": "toolu_017MDpbGEk6UvyNYSKBx3F2Y",
+    "status": "success"
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQSzwUKEAgTGAI4AUIIdGhpbmtpbmcSDCta2loJ8t0xDZA0TxoMkxHWfWe9ICoitL+xIjC3d1iq+vRYrjc+VE88MXCwlBmw1HbRDk48YMlny77kZ6m00xtCn//IyCyjlw856FEq7AT1SuuDYXE7DqqF+OX+ypndOQ5VPw8ZooZLE/GEXbk0Vy/ymE7D39hbVT0PprQhx5Geqm9xBVhRRYJa9PFulIqbCFzAFcVjlJBU6J6tnPAJV5+/oXJq6wi3mzsUJW8ikeTWmTWMGmA6BhbnJO0n1QCsRijK+NM6Mw7knPk9DsHaTtZMzO9GU6FW3BqNMUy4byrUjvfWt9eD7J8Y4Rqa+wv072bHVPxxw64trYtbbkg28RHKReQJncnI7DtDCt+HxW7dZBIvPcAelEDtyenDwDZLsYtmLsFvGSBEpzuNwsGbnto8J+NkY8f/3SHEV1oswRspgh6+ulhsW7tSOTBLeqn4IvDL1iM00JFW1syQFrqCYh4gjXDSdZntxBZXMhUlARLkzI6eC5ahLVHMF3rGrDX4L/x3leLPfc3tS9zzPolQGP7mfYh/men3R0BRGEd1QBGMc7SNWWuHIDwA2vqCnCKEhPz157V6HGsIkJ0PTLCitU105QoArJ6niqbtaF+71l0JhGTTau+27JM/ooUFty57LiDcdUWbW31oXg4l1tVMW9YlmdjJJzjG8vI6a034DgPSG06lPb77TeX2wqe6MeCtwThwTL1efCnDsED3M1dosrYQXm5JstS4rRifw/eiJMKsl51d4OAxDS+wEk7ZfuFddq7yaaVJfenH6+pcfDApiKpDg5cGpYg920h6EDXGl6X6FclB0yfhh17Ej3Tt0pPiKU2c2aDtcmwxOZkNR6XPwnzAfdKDjGnl1tnJsgN1gJx5u+r1BbmCwxczVqFOW4zvISXNLbC1ny03jKip5RILQIvKcOg4PXFIzJoLEBgB",
+      "thinking": "The first 50 rows are visible, but the last call's rows are what holds the answer, so I'll summarize from those.\n\n",
+      "type": "thinking"
+     },
+     {
+      "text": "I pulled the plant's daily consumption for April 2026, split into tariff bands F1, F2 and F3, from the site meter. The full result has 78 rows, but only the first 50 came back to me, so I can only describe 1 to 20 April here. The rows for 21 to 30 April are in the full result, but I haven't seen them.\n\n**Weekdays (Mon to Fri):** all three bands show up every day.\n- **F1:** about 15,800\u201316,650 kWh a day, roughly 57\u201360% of the day's total.\n- **F2:** about 6,000\u20136,600 kWh.\n- **F3:** usually about 5,350\u20135,700 kWh.\n- **Daily total:** usually around 28,000\u201328,600 kWh.\n- **Mondays (6 and 13 April):** F3 was lower, at about 3,500 kWh. That's probably because the early hours of Monday follow a quiet Sunday night. The daily total was about 25,900\u201326,050 kWh.\n\n**Saturdays (4, 11 and 18 April):** there's no F1 at all, only F2 and F3.\n- **F2:** about 8,300\u20139,100 kWh.\n- **F3:** about 4,400\u20135,000 kWh.\n- **Daily total:** about 13,000\u201314,100 kWh, around half a weekday.\n\n**Sundays (5, 12 and 19 April):** everything is billed as F3, about 6,275 kWh each day.\n\n**Selected days (kWh):**\n\n| Day | F1 | F2 | F3 |\n|---|---|---|---|\n| Wed 1 Apr | 16,266 | 6,301 | 5,521 |\n| Fri 3 Apr | 16,045 | 6,143 | 5,348 |\n| Sat 4 Apr | \u2014 | 8,344 | 4,643 |\n| Sun 5 Apr | \u2014 | \u2014 | 6,275 |\n| Mon 6 Apr | 16,049 | 6,493 | 3,511 |\n| Wed 15 Apr | 16,644 | 6,532 | 5,473 |\n| Sat 18 Apr | \u2014 | 8,789 | 4,444 |\n| Sun 19 Apr | \u2014 | \u2014 | 6,278 |\n| Mon 20 Apr | 16,277 | 6,160 | (not in the rows I saw) |\n\nThe last 10 days of April probably follow the same weekday and weekend pattern, but I can't confirm that or give their figures without the missing rows.",
+      "type": "text"
+     }
+    ],
+    "tool_calls": [],
+    "response_metadata": {
+     "id": "msg_011Cgyh6rYdSUqm9aoxaKhv5",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2704,
+      "inference_geo": "global",
+      "input_tokens": 1646,
+      "output_tokens": 836,
+      "output_tokens_details": {
+       "thinking_tokens": 31
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "name": "query_metric",
+    "args": {
+     "metric": "consumption_kwh",
+     "start": "2026-04-01",
+     "end": "2026-05-01",
+     "grain": "day",
+     "by_tariff_band": true
+    },
+    "ok": true,
+    "content": "bucket_start,tariff_band,value\n2026-04-01T00:00:00+02:00,F1,16266.283999999998\n2026-04-01T00:00:00+02:00,F2,6301.322\n2026-04-01T00:00:00+02:00,F3,5521.218000000002\n2026-04-02T00:00:00+02:00,F1,16629.069000000003\n2026-04-02T00:00:00+02:00,F2,6355.889\n2026-04-02T00:00:00+02:00,F3,5617.722999999999\n2026-04-03T00:00:00+02:00,F1,16044.904000000002\n2026-04-03T00:00:00+02:00,F2,6143.1089999999995\n2026-04-03T00:00:00+02:00,F3,5347.99\n2026-04-04T00:00:00+02:00,F2,8344.112000000001\n2026-04-04T00:00:00+02:00,F3,4643.345000000001\n2026-04-05T00:00:00+02:00,F3,6274.802000000002\n2026-04-06T00:00:00+02:00,F1,16048.949\n2026-04-06T00:00:00+02:00,F2,6492.507\n2026-04-06T00:00:00+02:00,F3,3511.1579999999994\n2026-04-07T00:00:00+02:00,F1,16461.396999999997\n2026-04-07T00:00:00+02:00,F2,6228.974999999999\n2026-04-07T00:00:00+02:00,F3,5606.165999999999\n2026-04-08T00:00:00+02:00,F1,15781.400000000003\n2026-04-08T00:00:00+02:00,F2,6472.5289999999995\n2026-04-08T00:00:00+02:00,F3,5571.706999999999\n2026-04-09T00:00:00+02:00,F1,16536.135\n2026-04-09T00:00:00+02:00,F2,6253.902000000001\n2026-04-09T00:00:00+02:00,F3,5401.523\n2026-04-10T00:00:00+02:00,F1,16564.487999999998\n2026-04-10T00:00:00+02:00,F2,6282.384000000001\n2026-04-10T00:00:00+02:00,F3,5647.234\n2026-04-11T00:00:00+02:00,F2,9103.603999999998\n2026-04-11T00:00:00+02:00,F3,5001.043000000001\n2026-04-12T00:00:00+02:00,F3,6275.435000000002\n2026-04-13T00:00:00+02:00,F1,16339.260999999999\n2026-04-13T00:00:00+02:00,F2,6170.842\n2026-04-13T00:00:00+02:00,F3,3435.521\n2026-04-14T00:00:00+02:00,F1,16524.192\n2026-04-14T00:00:00+02:00,F2,6033.89\n2026-04-14T00:00:00+02:00,F3,5648.853000000002\n2026-04-15T00:00:00+02:00,F1,16643.873999999996\n2026-04-15T00:00:00+02:00,F2,6532.208\n2026-04-15T00:00:00+02:00,F3,5473.044\n2026-04-16T00:00:00+02:00,F1,16227.748000000003\n2026-04-16T00:00:00+02:00,F2,6231.685000000001\n2026-04-16T00:00:00+02:00,F3,5672.403\n2026-04-17T00:00:00+02:00,F1,16224.517000000003\n2026-04-17T00:00:00+02:00,F2,6627.581999999999\n2026-04-17T00:00:00+02:00,F3,5722.6630000000005\n2026-04-18T00:00:00+02:00,F2,8788.603999999998\n2026-04-18T00:00:00+02:00,F3,4444.396000000001\n2026-04-19T00:00:00+02:00,F3,6278.068999999998\n2026-04-20T00:00:00+02:00,F1,16277.252000000004\n2026-04-20T00:00:00+02:00,F2,6160.175\n78 rows in total, the first 50 shown",
+    "sql": "SELECT r.day_start AS bucket_start, r.tariff_band AS tariff_band, sum(r.kwh) AS value FROM reading r WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ? GROUP BY r.day_start, r.tariff_band ORDER BY min(min(r.ts_utc)) OVER (PARTITION BY r.day_start), r.tariff_band"
+   }
+  ],
+  "final": "rows",
+  "columns": [
+   "bucket_start",
+   "tariff_band",
+   "value"
+  ],
+  "rows": [
+   [
+    "2026-04-01T00:00:00+02:00",
+    "F1",
+    16266.283999999998
+   ],
+   [
+    "2026-04-01T00:00:00+02:00",
+    "F2",
+    6301.322
+   ],
+   [
+    "2026-04-01T00:00:00+02:00",
+    "F3",
+    5521.218000000002
+   ],
+   [
+    "2026-04-02T00:00:00+02:00",
+    "F1",
+    16629.069000000003
+   ],
+   [
+    "2026-04-02T00:00:00+02:00",
+    "F2",
+    6355.889
+   ],
+   [
+    "2026-04-02T00:00:00+02:00",
+    "F3",
+    5617.722999999999
+   ],
+   [
+    "2026-04-03T00:00:00+02:00",
+    "F1",
+    16044.904000000002
+   ],
+   [
+    "2026-04-03T00:00:00+02:00",
+    "F2",
+    6143.1089999999995
+   ],
+   [
+    "2026-04-03T00:00:00+02:00",
+    "F3",
+    5347.99
+   ],
+   [
+    "2026-04-04T00:00:00+02:00",
+    "F2",
+    8344.112000000001
+   ],
+   [
+    "2026-04-04T00:00:00+02:00",
+    "F3",
+    4643.345000000001
+   ],
+   [
+    "2026-04-05T00:00:00+02:00",
+    "F3",
+    6274.802000000002
+   ],
+   [
+    "2026-04-06T00:00:00+02:00",
+    "F1",
+    16048.949
+   ],
+   [
+    "2026-04-06T00:00:00+02:00",
+    "F2",
+    6492.507
+   ],
+   [
+    "2026-04-06T00:00:00+02:00",
+    "F3",
+    3511.1579999999994
+   ],
+   [
+    "2026-04-07T00:00:00+02:00",
+    "F1",
+    16461.396999999997
+   ],
+   [
+    "2026-04-07T00:00:00+02:00",
+    "F2",
+    6228.974999999999
+   ],
+   [
+    "2026-04-07T00:00:00+02:00",
+    "F3",
+    5606.165999999999
+   ],
+   [
+    "2026-04-08T00:00:00+02:00",
+    "F1",
+    15781.400000000003
+   ],
+   [
+    "2026-04-08T00:00:00+02:00",
+    "F2",
+    6472.5289999999995
+   ],
+   [
+    "2026-04-08T00:00:00+02:00",
+    "F3",
+    5571.706999999999
+   ],
+   [
+    "2026-04-09T00:00:00+02:00",
+    "F1",
+    16536.135
+   ],
+   [
+    "2026-04-09T00:00:00+02:00",
+    "F2",
+    6253.902000000001
+   ],
+   [
+    "2026-04-09T00:00:00+02:00",
+    "F3",
+    5401.523
+   ],
+   [
+    "2026-04-10T00:00:00+02:00",
+    "F1",
+    16564.487999999998
+   ],
+   [
+    "2026-04-10T00:00:00+02:00",
+    "F2",
+    6282.384000000001
+   ],
+   [
+    "2026-04-10T00:00:00+02:00",
+    "F3",
+    5647.234
+   ],
+   [
+    "2026-04-11T00:00:00+02:00",
+    "F2",
+    9103.603999999998
+   ],
+   [
+    "2026-04-11T00:00:00+02:00",
+    "F3",
+    5001.043000000001
+   ],
+   [
+    "2026-04-12T00:00:00+02:00",
+    "F3",
+    6275.435000000002
+   ],
+   [
+    "2026-04-13T00:00:00+02:00",
+    "F1",
+    16339.260999999999
+   ],
+   [
+    "2026-04-13T00:00:00+02:00",
+    "F2",
+    6170.842
+   ],
+   [
+    "2026-04-13T00:00:00+02:00",
+    "F3",
+    3435.521
+   ],
+   [
+    "2026-04-14T00:00:00+02:00",
+    "F1",
+    16524.192
+   ],
+   [
+    "2026-04-14T00:00:00+02:00",
+    "F2",
+    6033.89
+   ],
+   [
+    "2026-04-14T00:00:00+02:00",
+    "F3",
+    5648.853000000002
+   ],
+   [
+    "2026-04-15T00:00:00+02:00",
+    "F1",
+    16643.873999999996
+   ],
+   [
+    "2026-04-15T00:00:00+02:00",
+    "F2",
+    6532.208
+   ],
+   [
+    "2026-04-15T00:00:00+02:00",
+    "F3",
+    5473.044
+   ],
+   [
+    "2026-04-16T00:00:00+02:00",
+    "F1",
+    16227.748000000003
+   ],
+   [
+    "2026-04-16T00:00:00+02:00",
+    "F2",
+    6231.685000000001
+   ],
+   [
+    "2026-04-16T00:00:00+02:00",
+    "F3",
+    5672.403
+   ],
+   [
+    "2026-04-17T00:00:00+02:00",
+    "F1",
+    16224.517000000003
+   ],
+   [
+    "2026-04-17T00:00:00+02:00",
+    "F2",
+    6627.581999999999
+   ],
+   [
+    "2026-04-17T00:00:00+02:00",
+    "F3",
+    5722.6630000000005
+   ],
+   [
+    "2026-04-18T00:00:00+02:00",
+    "F2",
+    8788.603999999998
+   ],
+   [
+    "2026-04-18T00:00:00+02:00",
+    "F3",
+    4444.396000000001
+   ],
+   [
+    "2026-04-19T00:00:00+02:00",
+    "F3",
+    6278.068999999998
+   ],
+   [
+    "2026-04-20T00:00:00+02:00",
+    "F1",
+    16277.252000000004
+   ],
+   [
+    "2026-04-20T00:00:00+02:00",
+    "F2",
+    6160.175
+   ],
+   [
+    "2026-04-20T00:00:00+02:00",
+    "F3",
+    3489.219000000001
+   ],
+   [
+    "2026-04-21T00:00:00+02:00",
+    "F1",
+    16822.15
+   ],
+   [
+    "2026-04-21T00:00:00+02:00",
+    "F2",
+    6316.0779999999995
+   ],
+   [
+    "2026-04-21T00:00:00+02:00",
+    "F3",
+    5501.432000000001
+   ],
+   [
+    "2026-04-22T00:00:00+02:00",
+    "F1",
+    16773.399999999998
+   ],
+   [
+    "2026-04-22T00:00:00+02:00",
+    "F2",
+    6218.063
+   ],
+   [
+    "2026-04-22T00:00:00+02:00",
+    "F3",
+    5672.761
+   ],
+   [
+    "2026-04-23T00:00:00+02:00",
+    "F1",
+    16168.288999999997
+   ],
+   [
+    "2026-04-23T00:00:00+02:00",
+    "F2",
+    6402.076
+   ],
+   [
+    "2026-04-23T00:00:00+02:00",
+    "F3",
+    5351.949999999999
+   ],
+   [
+    "2026-04-24T00:00:00+02:00",
+    "F1",
+    16233.949999999997
+   ],
+   [
+    "2026-04-24T00:00:00+02:00",
+    "F2",
+    6531.174000000002
+   ],
+   [
+    "2026-04-24T00:00:00+02:00",
+    "F3",
+    5487.754000000002
+   ],
+   [
+    "2026-04-25T00:00:00+02:00",
+    "F2",
+    9276.613
+   ],
+   [
+    "2026-04-25T00:00:00+02:00",
+    "F3",
+    4823.355
+   ],
+   [
+    "2026-04-26T00:00:00+02:00",
+    "F3",
+    6300.046999999998
+   ],
+   [
+    "2026-04-27T00:00:00+02:00",
+    "F1",
+    15885.722000000002
+   ],
+   [
+    "2026-04-27T00:00:00+02:00",
+    "F2",
+    6611.659000000001
+   ],
+   [
+    "2026-04-27T00:00:00+02:00",
+    "F3",
+    3504.6780000000003
+   ],
+   [
+    "2026-04-28T00:00:00+02:00",
+    "F1",
+    16478.823999999997
+   ],
+   [
+    "2026-04-28T00:00:00+02:00",
+    "F2",
+    6082.144
+   ],
+   [
+    "2026-04-28T00:00:00+02:00",
+    "F3",
+    5687.446999999999
+   ],
+   [
+    "2026-04-29T00:00:00+02:00",
+    "F1",
+    16860.326999999997
+   ],
+   [
+    "2026-04-29T00:00:00+02:00",
+    "F2",
+    5922.452
+   ],
+   [
+    "2026-04-29T00:00:00+02:00",
+    "F3",
+    5444.959
+   ],
+   [
+    "2026-04-30T00:00:00+02:00",
+    "F1",
+    16653.921
+   ],
+   [
+    "2026-04-30T00:00:00+02:00",
+    "F2",
+    6533.330999999999
+   ],
+   [
+    "2026-04-30T00:00:00+02:00",
+    "F3",
+    5484.263
+   ]
+  ],
+  "successful_results": [
+   [
+    [
+     "bucket_start",
+     "tariff_band",
+     "value"
+    ],
+    [
+     [
+      "2026-04-01T00:00:00+02:00",
+      "F1",
+      16266.283999999998
+     ],
+     [
+      "2026-04-01T00:00:00+02:00",
+      "F2",
+      6301.322
+     ],
+     [
+      "2026-04-01T00:00:00+02:00",
+      "F3",
+      5521.218000000002
+     ],
+     [
+      "2026-04-02T00:00:00+02:00",
+      "F1",
+      16629.069000000003
+     ],
+     [
+      "2026-04-02T00:00:00+02:00",
+      "F2",
+      6355.889
+     ],
+     [
+      "2026-04-02T00:00:00+02:00",
+      "F3",
+      5617.722999999999
+     ],
+     [
+      "2026-04-03T00:00:00+02:00",
+      "F1",
+      16044.904000000002
+     ],
+     [
+      "2026-04-03T00:00:00+02:00",
+      "F2",
+      6143.1089999999995
+     ],
+     [
+      "2026-04-03T00:00:00+02:00",
+      "F3",
+      5347.99
+     ],
+     [
+      "2026-04-04T00:00:00+02:00",
+      "F2",
+      8344.112000000001
+     ],
+     [
+      "2026-04-04T00:00:00+02:00",
+      "F3",
+      4643.345000000001
+     ],
+     [
+      "2026-04-05T00:00:00+02:00",
+      "F3",
+      6274.802000000002
+     ],
+     [
+      "2026-04-06T00:00:00+02:00",
+      "F1",
+      16048.949
+     ],
+     [
+      "2026-04-06T00:00:00+02:00",
+      "F2",
+      6492.507
+     ],
+     [
+      "2026-04-06T00:00:00+02:00",
+      "F3",
+      3511.1579999999994
+     ],
+     [
+      "2026-04-07T00:00:00+02:00",
+      "F1",
+      16461.396999999997
+     ],
+     [
+      "2026-04-07T00:00:00+02:00",
+      "F2",
+      6228.974999999999
+     ],
+     [
+      "2026-04-07T00:00:00+02:00",
+      "F3",
+      5606.165999999999
+     ],
+     [
+      "2026-04-08T00:00:00+02:00",
+      "F1",
+      15781.400000000003
+     ],
+     [
+      "2026-04-08T00:00:00+02:00",
+      "F2",
+      6472.5289999999995
+     ],
+     [
+      "2026-04-08T00:00:00+02:00",
+      "F3",
+      5571.706999999999
+     ],
+     [
+      "2026-04-09T00:00:00+02:00",
+      "F1",
+      16536.135
+     ],
+     [
+      "2026-04-09T00:00:00+02:00",
+      "F2",
+      6253.902000000001
+     ],
+     [
+      "2026-04-09T00:00:00+02:00",
+      "F3",
+      5401.523
+     ],
+     [
+      "2026-04-10T00:00:00+02:00",
+      "F1",
+      16564.487999999998
+     ],
+     [
+      "2026-04-10T00:00:00+02:00",
+      "F2",
+      6282.384000000001
+     ],
+     [
+      "2026-04-10T00:00:00+02:00",
+      "F3",
+      5647.234
+     ],
+     [
+      "2026-04-11T00:00:00+02:00",
+      "F2",
+      9103.603999999998
+     ],
+     [
+      "2026-04-11T00:00:00+02:00",
+      "F3",
+      5001.043000000001
+     ],
+     [
+      "2026-04-12T00:00:00+02:00",
+      "F3",
+      6275.435000000002
+     ],
+     [
+      "2026-04-13T00:00:00+02:00",
+      "F1",
+      16339.260999999999
+     ],
+     [
+      "2026-04-13T00:00:00+02:00",
+      "F2",
+      6170.842
+     ],
+     [
+      "2026-04-13T00:00:00+02:00",
+      "F3",
+      3435.521
+     ],
+     [
+      "2026-04-14T00:00:00+02:00",
+      "F1",
+      16524.192
+     ],
+     [
+      "2026-04-14T00:00:00+02:00",
+      "F2",
+      6033.89
+     ],
+     [
+      "2026-04-14T00:00:00+02:00",
+      "F3",
+      5648.853000000002
+     ],
+     [
+      "2026-04-15T00:00:00+02:00",
+      "F1",
+      16643.873999999996
+     ],
+     [
+      "2026-04-15T00:00:00+02:00",
+      "F2",
+      6532.208
+     ],
+     [
+      "2026-04-15T00:00:00+02:00",
+      "F3",
+      5473.044
+     ],
+     [
+      "2026-04-16T00:00:00+02:00",
+      "F1",
+      16227.748000000003
+     ],
+     [
+      "2026-04-16T00:00:00+02:00",
+      "F2",
+      6231.685000000001
+     ],
+     [
+      "2026-04-16T00:00:00+02:00",
+      "F3",
+      5672.403
+     ],
+     [
+      "2026-04-17T00:00:00+02:00",
+      "F1",
+      16224.517000000003
+     ],
+     [
+      "2026-04-17T00:00:00+02:00",
+      "F2",
+      6627.581999999999
+     ],
+     [
+      "2026-04-17T00:00:00+02:00",
+      "F3",
+      5722.6630000000005
+     ],
+     [
+      "2026-04-18T00:00:00+02:00",
+      "F2",
+      8788.603999999998
+     ],
+     [
+      "2026-04-18T00:00:00+02:00",
+      "F3",
+      4444.396000000001
+     ],
+     [
+      "2026-04-19T00:00:00+02:00",
+      "F3",
+      6278.068999999998
+     ],
+     [
+      "2026-04-20T00:00:00+02:00",
+      "F1",
+      16277.252000000004
+     ],
+     [
+      "2026-04-20T00:00:00+02:00",
+      "F2",
+      6160.175
+     ],
+     [
+      "2026-04-20T00:00:00+02:00",
+      "F3",
+      3489.219000000001
+     ],
+     [
+      "2026-04-21T00:00:00+02:00",
+      "F1",
+      16822.15
+     ],
+     [
+      "2026-04-21T00:00:00+02:00",
+      "F2",
+      6316.0779999999995
+     ],
+     [
+      "2026-04-21T00:00:00+02:00",
+      "F3",
+      5501.432000000001
+     ],
+     [
+      "2026-04-22T00:00:00+02:00",
+      "F1",
+      16773.399999999998
+     ],
+     [
+      "2026-04-22T00:00:00+02:00",
+      "F2",
+      6218.063
+     ],
+     [
+      "2026-04-22T00:00:00+02:00",
+      "F3",
+      5672.761
+     ],
+     [
+      "2026-04-23T00:00:00+02:00",
+      "F1",
+      16168.288999999997
+     ],
+     [
+      "2026-04-23T00:00:00+02:00",
+      "F2",
+      6402.076
+     ],
+     [
+      "2026-04-23T00:00:00+02:00",
+      "F3",
+      5351.949999999999
+     ],
+     [
+      "2026-04-24T00:00:00+02:00",
+      "F1",
+      16233.949999999997
+     ],
+     [
+      "2026-04-24T00:00:00+02:00",
+      "F2",
+      6531.174000000002
+     ],
+     [
+      "2026-04-24T00:00:00+02:00",
+      "F3",
+      5487.754000000002
+     ],
+     [
+      "2026-04-25T00:00:00+02:00",
+      "F2",
+      9276.613
+     ],
+     [
+      "2026-04-25T00:00:00+02:00",
+      "F3",
+      4823.355
+     ],
+     [
+      "2026-04-26T00:00:00+02:00",
+      "F3",
+      6300.046999999998
+     ],
+     [
+      "2026-04-27T00:00:00+02:00",
+      "F1",
+      15885.722000000002
+     ],
+     [
+      "2026-04-27T00:00:00+02:00",
+      "F2",
+      6611.659000000001
+     ],
+     [
+      "2026-04-27T00:00:00+02:00",
+      "F3",
+      3504.6780000000003
+     ],
+     [
+      "2026-04-28T00:00:00+02:00",
+      "F1",
+      16478.823999999997
+     ],
+     [
+      "2026-04-28T00:00:00+02:00",
+      "F2",
+      6082.144
+     ],
+     [
+      "2026-04-28T00:00:00+02:00",
+      "F3",
+      5687.446999999999
+     ],
+     [
+      "2026-04-29T00:00:00+02:00",
+      "F1",
+      16860.326999999997
+     ],
+     [
+      "2026-04-29T00:00:00+02:00",
+      "F2",
+      5922.452
+     ],
+     [
+      "2026-04-29T00:00:00+02:00",
+      "F3",
+      5444.959
+     ],
+     [
+      "2026-04-30T00:00:00+02:00",
+      "F1",
+      16653.921
+     ],
+     [
+      "2026-04-30T00:00:00+02:00",
+      "F2",
+      6533.330999999999
+     ],
+     [
+      "2026-04-30T00:00:00+02:00",
+      "F3",
+      5484.263
+     ]
+    ]
+   ]
+  ],
+  "refusal_reason": null,
+  "cause": null,
+  "usage": {
+   "input_tokens": 1747,
+   "cache_creation_input_tokens": 2704,
+   "cache_read_input_tokens": 2704,
+   "output_tokens": 992
+  },
+  "served_model": "claude-opus-5-5"
+ },
+ "cost_eur": 0.0408888
+}

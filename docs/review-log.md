@@ -203,7 +203,16 @@
   top saying what changed later; `docs/stack.md` and the README were checked against the code.
   Its cross-model review step was skipped: it would send the private repository to an outside
   service. Nothing was pushed.
-- Total spend on the model API: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
+- Stress test, at the owner's word (cap 2 EUR, approved the same day): twelve harder questions,
+  one run each on `semantic` and `sql`, 24 runs, 0.67 EUR, read by hand and written up in
+  `docs/stress-test.md`. Preregistered with `/eval-plan` as exploratory: no score and no number
+  in the README's results. The tool's projection after the six-run pilot said "exceeds" again
+  (a wide band from three items); the run went on under the runner's own cap, as the owner had
+  approved the whole run. No wrong value; one run ended with rows and no answer; the page was
+  changed to say when its rows are only the last of several requests. The fixes had no code
+  review.
+- Total spend on the model API, corrected after the stress test: 14.68 EUR of 20.
+- Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
   responses, not checked against the invoice.
 

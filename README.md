@@ -181,6 +181,7 @@ I run a system of this kind in production for seven manufacturers. That code is 
 - [`docs/schema.md`](docs/schema.md): the database and rules R1 to R10, as the `sql` arm reads them.
 - [`docs/golden.md`](docs/golden.md): how the questions and answers were made.
 - [`docs/review-log.md`](docs/review-log.md): what was reviewed, by whom, when.
+- [`docs/stress-test.md`](docs/stress-test.md): twelve harder questions run once after the benchmark, and what broke.
 - [`docs/video-script.md`](docs/video-script.md): a two-minute walkthrough.
 
 MIT license, see [`LICENSE`](LICENSE).
