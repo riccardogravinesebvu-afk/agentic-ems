@@ -56,13 +56,22 @@ class HangingModel(FlakyModel):
 
     release: Any = None
     late: Any = None
+    hung: Any = None  # the thread of the hung call, once it is waiting
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs: Any):
         if self.calls == 0:
             self.calls += 1
-            self.release.wait(10)
+            self.hung = threading.current_thread()
+            self.release.wait()  # untimed: a timed wait here can end early when the wall clock steps
             return ChatResult(generations=[ChatGeneration(message=self.late)])
         return super()._generate(messages, stop, run_manager, **kwargs)
+
+    def wait(self, thread: threading.Thread, limit_s: float) -> None:
+        """The harness's wait, driven by events: only the hung call, while not released, is past its limit."""
+        while thread.is_alive():
+            if thread is self.hung and not self.release.is_set():
+                return
+            thread.join(0.01)
 
 
 def question(qid: str, group: str = "control") -> Question:
@@ -196,14 +205,14 @@ def test_run_over_the_wall_clock_limit_makes_no_new_request(bench, tmp_path):
     model = HangingModel(release=threading.Event(), script=[refuse(), refuse()],
                          late=reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=CACHED))
     try:
-        results = bench(model, [question("Q1")], run_timeout_s=0.2)
+        results = bench(model, [question("Q1")], wait=model.wait)
         files = [(tmp_path / name).read_text() for name in ("results.json", "errors.jsonl")]
         calls = model.calls
     finally:
         model.release.set()
     for thread in threading.enumerate():
         if thread.name == "benchmark-attempt":
-            thread.join(10)
+            thread.join()  # released, it ends: the meter refuses its next call
     [error] = errors(tmp_path)
     assert error["cause"] == "RunTimeout" and error["arm"] == "semantic"
     assert [(r["arm"], r["outcome"], r["retries"]) for r in results["runs"]] == [
@@ -219,14 +228,14 @@ def test_a_late_response_of_an_abandoned_run_is_priced_into_the_file(bench, tmp_
     late = reply(("run_sql", {"sql": "SELECT 1.0 AS value"}), usage=DOLLAR)
     model = HangingModel(release=threading.Event(), late=late, script=[refuse(), refuse()])
     model.probe = lambda call: call == 3 and model.release.set()  # released during the last run
-    results = bench(model, [question("Q1")], run_timeout_s=0.5, eur_per_usd=1.0)
+    results = bench(model, [question("Q1")], eur_per_usd=1.0, wait=model.wait)
     assert results["attempts_still_running"] == 0 and model.calls == 3
     assert results["unscored_eur"] == pytest.approx(cost_eur(DOLLAR, 1.0))
     assert saved(tmp_path)["unscored_eur"] == results["unscored_eur"]
 
 
 def test_an_interrupt_prices_the_attempt_and_names_the_failure(bench, tmp_path, monkeypatch):
-    def interrupted(limit_s, fn, meter):
+    def interrupted(limit_s, fn, meter, wait):
         fn()  # the attempt's response is billed and priced, then Ctrl-C arrives
         raise KeyboardInterrupt
 
@@ -238,16 +247,16 @@ def test_an_interrupt_prices_the_attempt_and_names_the_failure(bench, tmp_path, 
 
 
 def test_a_second_interrupt_in_the_final_wait_keeps_the_save_and_the_error(bench, tmp_path, monkeypatch):
-    class Stubborn:  # an abandoned attempt's thread; waiting for it is interrupted by a second Ctrl-C
-        def join(self, timeout):
-            raise KeyboardInterrupt
-
+    class Stubborn:  # an abandoned attempt's thread that never ends
         def is_alive(self):
             return True
 
+    def second_ctrl_c(thread, limit_s):
+        raise KeyboardInterrupt
+
     calls = []
 
-    def within(limit_s, fn, meter):
+    def within(limit_s, fn, meter, wait):
         calls.append(meter)
         if len(calls) == 1:
             meter.thread = Stubborn()  # type: ignore[assignment]
@@ -256,9 +265,27 @@ def test_a_second_interrupt_in_the_final_wait_keeps_the_save_and_the_error(bench
 
     monkeypatch.setattr(run_module, "_within", within)
     with pytest.raises(ValueError):
-        bench(ScriptedChatModel(script=[]), [question("Q1")])
+        bench(ScriptedChatModel(script=[]), [question("Q1")], wait=second_ctrl_c)
     kept = saved(tmp_path)
     assert kept["failure"] == "ValueError: a harness bug" and kept["attempts_still_running"] == 1
+
+
+def test_the_run_limit_is_measured_on_the_monotonic_clock(monkeypatch):
+    # Timed lock waits in this CPython build follow the wall clock; the harness's wait must not.
+    release = threading.Event()
+    thread = threading.Thread(target=release.wait, daemon=True)
+    thread.start()
+    ticks = iter(range(100))
+    monkeypatch.setattr(run_module.time, "monotonic", lambda: float(next(ticks)))
+    monkeypatch.setattr(run_module.time, "sleep", lambda seconds: None)
+    try:
+        run_module._wait(thread, 3.0)  # returns after three ticks of the monotonic clock, alive
+        assert thread.is_alive() and next(ticks) == 4
+    finally:
+        release.set()
+        thread.join()
+    run_module._wait(thread, 3.0)  # an ended thread returns at once
+    assert next(ticks) == 6
 
 
 def test_one_model_mismatch_fails_the_attempt_and_is_priced_in_full(bench, tmp_path):

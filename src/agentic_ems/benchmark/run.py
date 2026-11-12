@@ -53,6 +53,7 @@ RESULTS = ROOT / "results"
 PRICES = {"input_tokens": 4.00, "cache_creation_input_tokens": 5.00, "cache_read_input_tokens": 0.20, "output_tokens": 20.00}
 MAX_MISMATCHES = 3
 BACKOFF_BASE_S, BACKOFF_CAP_S = 2.0, 60.0
+POLL_S = 0.01
 IN_PROGRESS = "in progress: the benchmark has not finished"
 
 
@@ -122,7 +123,22 @@ def _dump(path: Path, data) -> None:
     partial.replace(path)
 
 
-def _within(limit_s: float, fn: Callable[[], RunRecord], meter: Meter) -> RunRecord:
+def _wait(thread: threading.Thread, limit_s: float) -> None:
+    """Until the thread ends or limit_s passes on the monotonic clock.
+
+    Not thread.join(limit_s): where CPython lacks sem_clockwait (this uv-managed 3.14 build), a timed lock
+    wait ends at a wall-clock deadline, so a step of the system clock would shorten or stretch the limit.
+    time.sleep runs on the monotonic clock.
+    """
+    deadline = time.monotonic() + limit_s
+    while thread.is_alive() and deadline - time.monotonic() > 0:
+        time.sleep(POLL_S)
+
+
+Wait = Callable[[threading.Thread, float], None]
+
+
+def _within(limit_s: float, fn: Callable[[], RunRecord], meter: Meter, wait: Wait) -> RunRecord:
     # A daemon thread, because a run past its limit cannot be stopped: it is abandoned and never blocks exit.
     out: dict = {}
 
@@ -134,7 +150,7 @@ def _within(limit_s: float, fn: Callable[[], RunRecord], meter: Meter) -> RunRec
 
     thread = meter.thread = threading.Thread(target=target, name="benchmark-attempt", daemon=True)
     thread.start()
-    thread.join(limit_s)
+    wait(thread, limit_s)
     if thread.is_alive():
         meter.abandoned = True
         raise RunTimeout(f"the run took longer than {limit_s:g} s")
@@ -146,7 +162,7 @@ def _within(limit_s: float, fn: Callable[[], RunRecord], meter: Meter) -> RunRec
 def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], arms: list[Arm], *, repeats: int,
                   budget_eur: float, eur_per_usd: float, min_repeats: int, first_repeat_eur: float, effort: str,
                   seed: int, run_timeout_s: float, max_attempts: int, out_dir: Path, callbacks: list | None = None,
-                  sleep: Callable[[float], None] = time.sleep) -> dict:
+                  sleep: Callable[[float], None] = time.sleep, wait: Wait = _wait) -> dict:
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run_dir = out_dir / "runs" / run_id
     run_dir.mkdir(parents=True)
@@ -208,7 +224,7 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
             started = time.monotonic()
             try:
                 record = _within(run_timeout_s, functools.partial(
-                    run_agent, model, arm, q.text, callbacks=[*(callbacks or []), meter]), meter)
+                    run_agent, model, arm, q.text, callbacks=[*(callbacks or []), meter]), meter, wait)
             except RETRIED as exc:
                 unscored.append(meter)
                 mismatches = mismatches + 1 if isinstance(exc, ModelMismatch) else 0
@@ -283,7 +299,7 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
         try:
             for meter in unscored:
                 if meter.thread is not None:
-                    meter.thread.join(max(0.0, deadline - time.monotonic()))
+                    wait(meter.thread, max(0.0, deadline - time.monotonic()))
         except KeyboardInterrupt:
             pass  # a second Ctrl-C ends the wait only: the save below still runs and the first error stays
         results["attempts_still_running"] = sum(m.thread is not None and m.thread.is_alive() for m in unscored)
