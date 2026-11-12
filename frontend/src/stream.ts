@@ -127,7 +127,7 @@ const UNITS: Record<string, string> = {
   consumption_kwh: "kWh",
   peak_kw: "kW",
   cost_eur: "EUR",
-  energy_per_unit: "kWh per unit",
+  energy_per_unit: "kWh/unit",
 }
 
 export function unitOf(metric: unknown): string {
@@ -136,7 +136,10 @@ export function unitOf(metric: unknown): string {
 
 export function formatValue(value: Cell, unit: string): string {
   if (typeof value !== "number") return "no value"
-  const number = value.toLocaleString("en-US", { maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 1 })
+  const size = Math.abs(value)
+  // At one decimal a non-zero value below 0.05 would show as 0, so it keeps two significant digits.
+  const digits = size >= 1000 ? { maximumFractionDigits: 0 } : size >= 0.05 || size === 0 ? { maximumFractionDigits: 1 } : { maximumSignificantDigits: 2 }
+  const number = value.toLocaleString("en-US", digits)
   return unit ? `${number} ${unit}` : number
 }
 
@@ -148,9 +151,21 @@ export function formatBucket(bucket: string): string {
   return time === "00:00" && seconds === "00" ? date : `${date} ${time}`
 }
 
-/** A key cell as the page shows it. */
-export function formatKey(column: string, cell: Cell): string {
-  return column === "bucket_start" && typeof cell === "string" ? formatBucket(cell) : String(cell)
+/** Key cells as the page shows them; buckets of these rows that share a short label, such as the two autumn
+ * 02:00 hours, keep their UTC offset: "2026-10-25 02:00 +02:00" and "2026-10-25 02:00 +01:00". */
+export function keyFormatter(columns: string[], rows: Row[]): (column: string, cell: Cell) => string {
+  const at = columns.indexOf("bucket_start")
+  const buckets = new Map<string, Set<string>>() // short label: the distinct bucket strings that have it
+  for (const row of rows) {
+    const bucket = String(row[at])
+    const label = formatBucket(bucket)
+    buckets.set(label, (buckets.get(label) ?? new Set()).add(bucket))
+  }
+  return (column, cell) => {
+    if (column !== "bucket_start" || typeof cell !== "string") return String(cell)
+    const label = formatBucket(cell)
+    return (buckets.get(label)?.size ?? 0) > 1 ? `${label} ${cell.slice(19)}` : label
+  }
 }
 
 /** The number the page leads with: the only value, or the highest one and the keys of its row. */
@@ -160,6 +175,7 @@ export function headline(columns: string[], rows: Row[]): { value: Cell; label: 
   const rank = (row: Row) => (typeof row[at] === "number" ? (row[at] as number) : -Infinity)
   const top = rows.reduce<Row | null>((best, row) => (best === null || rank(row) > rank(best) ? row : best), null)
   if (top === null) return null
+  const formatKey = keyFormatter(columns, rows)
   const label = keys.length ? keys.map((i) => formatKey(columns[i], top[i])).join(", ") : null
   if (rows.length === 1) return { value: top[at], label }
   return { value: top[at], label: label !== null && typeof top[at] === "number" ? `highest, ${label}` : null }
@@ -171,6 +187,7 @@ export function pivot(columns: string[], rows: Row[]) {
   const xName = ["bucket_start", "meter_id", "tariff_band"].find((c) => columns.includes(c))!
   const x = columns.indexOf(xName)
   const others = columns.map((_, i) => i).filter((i) => i !== at && i !== x)
+  const formatKey = keyFormatter(columns, rows)
   const instant = (row: Row) => Date.parse(String(row[x]))
   const ordered =
     xName === "bucket_start"

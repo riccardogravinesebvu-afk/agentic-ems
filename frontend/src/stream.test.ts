@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ask, chartKind, formatBucket, formatValue, headline, pivot, replay, unitOf, type Sample, type StreamEvent } from "./stream"
+import { ask, chartKind, formatBucket, formatValue, headline, keyFormatter, pivot, replay, unitOf, type Sample, type StreamEvent } from "./stream"
 import { breakdownSample, refusalSample, seriesSample, singleSample } from "./test-fixtures"
 
 async function collect(run: (onEvent: (e: StreamEvent) => void) => Promise<void>): Promise<StreamEvent[]> {
@@ -78,7 +78,7 @@ describe("units and numbers", () => {
     expect(unitOf("consumption_kwh")).toBe("kWh")
     expect(unitOf("peak_kw")).toBe("kW")
     expect(unitOf("cost_eur")).toBe("EUR")
-    expect(unitOf("energy_per_unit")).toBe("kWh per unit")
+    expect(unitOf("energy_per_unit")).toBe("kWh/unit")
     expect(unitOf("not_a_metric")).toBe("")
     expect(unitOf(undefined)).toBe("")
   })
@@ -87,10 +87,18 @@ describe("units and numbers", () => {
     expect(formatValue(436.72, "kW")).toBe("436.7 kW")
     expect(formatValue(999.94, "kWh")).toBe("999.9 kWh")
     expect(formatValue(12.0, "kWh")).toBe("12 kWh")
-    expect(formatValue(3.64, "kWh per unit")).toBe("3.6 kWh per unit")
+    expect(formatValue(3.64, "kWh/unit")).toBe("3.6 kWh/unit")
     expect(formatValue(1234.5678, "")).toBe("1,235")
     expect(formatValue(99999.9, "EUR")).toBe("100,000 EUR")
     expect(formatValue(null, "kWh")).toBe("no value")
+  })
+
+  it("shows a non-zero value below 0.05 with two significant digits, never as 0", () => {
+    expect(formatValue(0.0123, "kWh/unit")).toBe("0.012 kWh/unit")
+    expect(formatValue(0.049, "kW")).toBe("0.049 kW")
+    expect(formatValue(-0.00045678, "")).toBe("-0.00046")
+    expect(formatValue(0, "kWh")).toBe("0 kWh")
+    expect(formatValue(0.05, "kWh")).toBe("0.1 kWh")
   })
 
   it("formats a bucket from its own string, with no time zone conversion", () => {
@@ -99,6 +107,26 @@ describe("units and numbers", () => {
     expect(formatBucket("2026-07-01T00:00:00+02:00")).toBe("2026-07-01")
     expect(formatBucket("2026-10-25T02:45:00+01:00")).toBe("2026-10-25 02:45")
     expect(formatBucket("not a bucket")).toBe("not a bucket")
+  })
+
+  it("keeps the offset on the two autumn 02:00 hours, and only on buckets whose short labels would be equal", () => {
+    const columns = ["bucket_start", "value"]
+    const rows = [
+      ["2026-10-25T01:00:00+02:00", 1],
+      ["2026-10-25T02:00:00+02:00", 2],
+      ["2026-10-25T02:00:00+01:00", 3],
+      ["2026-10-25T03:00:00+01:00", 4],
+    ]
+    const format = keyFormatter(columns, rows)
+    expect(rows.map((row) => format("bucket_start", row[0]))).toEqual([
+      "2026-10-25 01:00",
+      "2026-10-25 02:00 +02:00",
+      "2026-10-25 02:00 +01:00",
+      "2026-10-25 03:00",
+    ])
+    expect(format("value", 2)).toBe("2")
+    expect(headline(columns, rows.slice(1, 3))).toEqual({ value: 3, label: "highest, 2026-10-25 02:00 +01:00" })
+    expect(keyFormatter(columns, [rows[2]])("bucket_start", rows[2][0])).toBe("2026-10-25 02:00")
   })
 
   it("takes the headline from the rows: the value, or the highest value and its label", () => {
@@ -129,8 +157,8 @@ describe("units and numbers", () => {
       series: ["m1", "m2"],
       data: [
         { x: "2026-10-25 01:00", s0: 1, s1: 9 },
-        { x: "2026-10-25 02:00", s0: 2 },
-        { x: "2026-10-25 02:00", s0: 3 },
+        { x: "2026-10-25 02:00 +02:00", s0: 2 },
+        { x: "2026-10-25 02:00 +01:00", s0: 3 },
       ],
     })
     expect(pivot(breakdownSample.columns!, [["b", 1], ["a", 2]])).toEqual({

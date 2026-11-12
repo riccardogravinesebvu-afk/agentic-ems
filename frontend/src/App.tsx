@@ -14,9 +14,9 @@ import { Input } from "@/components/ui/input"
 import {
   ask,
   chartKind,
-  formatKey,
   formatValue,
   headline,
+  keyFormatter,
   pivot,
   replay,
   unitOf,
@@ -51,7 +51,7 @@ const EMPTY: View = {
   error: null,
   streaming: false,
 }
-const MAX_QUESTION_CHARS = 500
+const MAX_QUESTION_CHARS = 500 // the server's limit, MAX_QUESTION_CHARS in src/agentic_ems/demo.py
 const REPLAY_DELAY_MS = 25
 
 function apply(view: View, event: StreamEvent): View {
@@ -270,6 +270,7 @@ export default function App() {
 function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; unit: string; metric: unknown }) {
   const { kind, columns, rows, unit } = props
   const { xName, data, series } = pivot(columns, rows)
+  const formatKey = keyFormatter(columns, rows)
   const metric = typeof props.metric === "string" ? props.metric : "value"
   // shortcut: four colours that read on white (chart-1 is too light), repeated past four series; upgrade if a sample needs more.
   const config: ChartConfig = Object.fromEntries(
