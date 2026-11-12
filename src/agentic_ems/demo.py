@@ -35,6 +35,7 @@ DIST = ROOT / "frontend" / "dist"
 SAMPLES = ROOT / "frontend" / "public" / "samples"
 HOST, PORT = "127.0.0.1", 8000
 MAX_QUESTION_CHARS = 500
+MAX_BODY_BYTES = 8192  # a 500-character question fits many times over
 EFFORT, MAX_TOKENS = "medium", 16000
 KEY = "ANTHROPIC_API_KEY"
 SAMPLE_QUESTIONS = (
@@ -150,6 +151,8 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
         # A page on another origin can POST text/plain without a preflight; only JSON, which needs one, is read.
         if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
             return JSONResponse({"error": "Send the question as application/json."}, status_code=415)
+        if int(request.headers.get("content-length") or 0) > MAX_BODY_BYTES:
+            return JSONResponse({"error": "The request is too large."}, status_code=413)
         try:
             body = await request.json()
         except ValueError:

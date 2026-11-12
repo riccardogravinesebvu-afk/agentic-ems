@@ -145,6 +145,22 @@
     repeat the system prompt; usage is summed in three places; the saved sample answers for
     the page are not recorded.
 
+- Security review of the whole repository by a separate agent, with attacks run against a
+  generated database and against the demo server started without a key. `/cso` could not run
+  on this machine (no C compiler) and the built-in review needs a remote, so an agent did it.
+  Nothing critical, high or medium. It found no way for model-written SQL to read or write a
+  file, reach the network, change a setting or run a second statement; no SQL injection
+  through a request; no way for another web page to make the local demo spend a key; no
+  secret, email address or home path in any tracked file or in the history.
+  - Fixed: a memory limit on the database (one row could hold a very large value); a size limit
+    on the demo's request body; `.env*` ignored; the workflow's token is read-only, installs
+    from the lock file and uses a supported Node.
+  - Left as they are: turning a large result into Python objects is not covered by the
+    10-second limit, so a model-written query can run a few seconds past it; hiding host paths
+    from model-written SQL rests on the parser's name check alone; the workflow's actions are
+    pinned by tag and not by commit.
+  - Not covered: the demo with a live key, the hosted page, package ownership on the registries.
+
 ## Owner rewording
 
 none yet

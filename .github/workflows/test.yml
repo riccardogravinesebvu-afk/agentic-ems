@@ -1,5 +1,7 @@
 name: test
 on: push
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -7,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run ruff check
       - run: uv run mypy src
       - run: uv run python -m agentic_ems.generator
@@ -15,7 +17,7 @@ jobs:
       - run: uv run python -m agentic_ems.benchmark.verify
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
         working-directory: frontend
       - run: npm test

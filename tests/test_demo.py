@@ -270,3 +270,12 @@ def test_record_refuses_to_run_without_a_key(monkeypatch, tmp_path, capsys):
     assert demo.main(["record", "--eur-per-usd", "0.9"]) == 1
     assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
     assert not (tmp_path / "samples").exists()
+
+
+def test_an_oversized_body_is_refused_before_it_is_parsed(con, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    model = ScriptedChatModel(script=[reply(text="never sent")])
+    response = client(demo.build_app(con, lambda: model)).post(
+        "/api/ask", content=json.dumps({"question": "x" * demo.MAX_BODY_BYTES}),
+        headers={"content-type": "application/json"})
+    assert response.status_code == 413 and model.received == []
