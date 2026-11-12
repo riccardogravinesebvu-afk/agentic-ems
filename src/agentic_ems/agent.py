@@ -220,10 +220,14 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
         state = graph.invoke(start, config)  # type: ignore[arg-type]
     else:
         # The demo: stream the model's text as it arrives; "values" carries the final state.
+        texted = None  # the id of the last message whose text was sent
         for mode, data in graph.stream(start, config, stream_mode=["messages", "values"]):  # type: ignore[arg-type]
             if mode == "values":
                 state = data
             elif data[1].get("langgraph_node") == "llm_call" and data[0].text:
+                if texted is not None and data[0].id != texted:
+                    on_text("\n\n")  # a new model turn: its text does not run into the previous one
+                texted = data[0].id
                 on_text(data[0].text)
 
     responses = [m for m in state["messages"] if isinstance(m, AIMessage)]

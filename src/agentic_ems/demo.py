@@ -19,8 +19,10 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.outputs import ChatGeneration, LLMResult
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, StreamingResponse
+from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -63,14 +65,32 @@ def _event(name: str, data: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(data)}\n\n"  # json.dumps escapes newlines: one data line
 
 
-class _Disconnected(Exception):
-    """The client went away, so the run stops at its next text delta."""
+class Disconnected(Exception):
+    """The client went away, so the run stops."""
+
+
+class StopOnDisconnect(BaseCallbackHandler):
+    """Stops a run whose client went away: before its next model call, and at the next token of the one in flight."""
+
+    raise_error = True  # so the error raised below stops the run instead of being logged and skipped
+
+    def __init__(self, stop: threading.Event) -> None:
+        self.stop = stop
+
+    def on_chat_model_start(self, serialized: dict, messages: list, **kwargs) -> None:
+        if self.stop.is_set():
+            raise Disconnected
+
+    def on_llm_new_token(self, token: object, **kwargs) -> None:
+        if self.stop.is_set():
+            raise Disconnected
 
 
 def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> Starlette:
     with con.cursor() as cursor:
         catalog = load_catalog(cursor)
     arm = semantic_arm(con, catalog, say_today=True)  # shared and read-only; each query takes its own cursor
+    running = threading.Lock()  # one run at a time: held from the run's start until its thread ends
 
     async def health(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True, "has_key": bool(os.environ.get(KEY))})
@@ -83,6 +103,8 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
             yield _event("error", {"message": f"The question is longer than {MAX_QUESTION_CHARS} characters."})
         elif not os.environ.get(KEY):
             yield _event("error", {"message": f"Set {KEY} in the server's environment to ask your own question."})
+        elif not running.acquire(blocking=False):
+            yield _event("error", {"message": "The server is busy with another question; ask again when it ends."})
         else:
             async for chunk in _run(question):
                 yield chunk
@@ -91,42 +113,43 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
     async def _run(question: str) -> AsyncIterator[str]:
         # run_agent is synchronous: it runs on its own thread and hands events to this loop through a queue.
         loop = asyncio.get_running_loop()
-        queue: asyncio.Queue[tuple[str, dict] | None] = asyncio.Queue()
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
         stop = threading.Event()
 
-        def put(item: tuple[str, dict] | None) -> None:
+        def put(item: str | None) -> None:
             if not stop.is_set():
                 loop.call_soon_threadsafe(queue.put_nowait, item)
 
-        def on_text(delta: str) -> None:
-            if stop.is_set():
-                raise _Disconnected
-            put(("text", {"delta": delta}))
-
         def work() -> None:
             try:
-                record = run_agent(model_factory(), arm, question, on_text=on_text)
+                # Events are encoded here, so a value JSON cannot encode ends in the error below, not a dead stream.
+                record = run_agent(model_factory(), arm, question, callbacks=[StopOnDisconnect(stop)],
+                                   on_text=lambda delta: put(_event("text", {"delta": delta})))
                 answer = _answer(record)
                 if record.final == "rows":
-                    put(("request", {"request": answer["request"], "sql": answer["sql"]}))
-                    put(("rows", {"columns": answer["columns"], "rows": answer["rows"]}))
+                    put(_event("request", {"request": answer["request"], "sql": answer["sql"]}))
+                    put(_event("rows", {"columns": answer["columns"], "rows": answer["rows"]}))
                 elif record.final == "refusal":
-                    put(("refusal", {"reason": answer["refusal"]}))
+                    put(_event("refusal", {"reason": answer["refusal"]}))
                 else:
-                    put(("error", {"message": f"The agent ended without an answer ({record.cause})."}))
+                    put(_event("error", {"message": f"The agent ended without an answer ({record.cause})."}))
             except Exception as exc:  # noqa: BLE001 - only the type reaches the page: no traceback, key or path
-                put(("error", {"message": f"The run failed ({type(exc).__name__})."}))
+                put(_event("error", {"message": f"The run failed ({type(exc).__name__})."}))
             finally:
+                running.release()
                 put(None)
 
         threading.Thread(target=work, name="demo-run", daemon=True).start()
         try:
             while (item := await queue.get()) is not None:
-                yield _event(*item)
+                yield item
         finally:
-            stop.set()  # on a disconnect Starlette cancels this generator; the run ends at its next delta
+            stop.set()  # on a disconnect Starlette cancels this generator; StopOnDisconnect then ends the run
 
-    async def ask(request: Request) -> StreamingResponse:
+    async def ask(request: Request) -> Response:
+        # A page on another origin can POST text/plain without a preflight; only JSON, which needs one, is read.
+        if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            return JSONResponse({"error": "Send the question as application/json."}, status_code=415)
         try:
             body = await request.json()
         except ValueError:
@@ -137,7 +160,8 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
     routes: list[Route | Mount] = [Route("/api/health", health), Route("/api/ask", ask, methods=["POST"])]
     if DIST.is_dir():
         routes.append(Mount("/", StaticFiles(directory=DIST, html=True)))  # StaticFiles refuses paths outside DIST
-    return Starlette(routes=routes)
+    # The Host check stops DNS rebinding from making an outside page same-origin; it ignores the port.
+    return Starlette(routes=routes, middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])])
 
 
 class Spend(BaseCallbackHandler):
@@ -155,14 +179,14 @@ class Spend(BaseCallbackHandler):
 
 
 def _text(record: RunRecord) -> str:
-    """The model's text across the run, as the server streams it."""
+    """The model's text across the run, as the server streams it: one turn's text after another, "\n\n" between."""
     parts = []
     for message in record.messages:
         if message["role"] == "ai":
             content = message["content"]
             parts.append(content if isinstance(content, str) else
                          "".join(block.get("text", "") for block in content if block.get("type") == "text"))
-    return "".join(parts)
+    return "\n\n".join(part for part in parts if part)
 
 
 def record(model: BaseChatModel, con, out_dir: Path, callbacks: list | None = None) -> int:
@@ -176,6 +200,7 @@ def record(model: BaseChatModel, con, out_dir: Path, callbacks: list | None = No
         run = run_agent(model, arm, question, callbacks=callbacks)
         if run.final == "none":
             print(f"Sample {n} ended without an answer ({run.cause}) and was not saved.", file=sys.stderr)
+            (out_dir / f"{n}.json").unlink(missing_ok=True)  # an earlier recording of it would no longer be current
             status = 1
             continue
         sample = {"question": question, "text": _text(run), **_answer(run)}

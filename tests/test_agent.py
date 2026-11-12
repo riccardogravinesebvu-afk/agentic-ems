@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -257,7 +256,7 @@ def test_on_text_streams_the_reply_text(sem):
     texts: list[str] = []
     record, _ = run(sem, reply(("query_metric", GOOD), text="Looking."), reply(text="Done."), on_text=texts.append)
     assert record.final == "rows" and len(record.rows) == 4  # the query ran in LangGraph's worker thread
-    assert re.sub(r"\s", "", "".join(texts)) == "Looking.Done."
+    assert "".join(texts) == "Looking.\n\nDone."  # the turns are separated
 
 
 @pytest.mark.parametrize(
