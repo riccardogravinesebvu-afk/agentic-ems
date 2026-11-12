@@ -36,6 +36,15 @@
   comparing the two computations found the second one written from the rules by a different
   method.
 
+## 2026-11-12
+
+- Owner's check of a sample of answers. The owner was shown ten questions with their reference
+  values and known wrong values: H1, H2, H8, H10, H13, H19, C5, M1, O1 and O9. The owner
+  accepted all ten and raised no objection, including the two rules called out as open to
+  dispute: a parent meter's own reading is the answer where its children sum to less (H1, H2,
+  H13), and a department plus one of its own lines is the department's reading (H19). The
+  owner read the values and the reading of each question; the owner did not recompute them.
+
 ## Owner rewording
 
 none yet

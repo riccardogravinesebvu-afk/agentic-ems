@@ -41,7 +41,7 @@ This page says how the questions and their answers were made, what was checked, 
 
 - Both computations share one specification. A rule misread in the same way by both writers,
   or a mistake in the specification itself, is not caught by the comparison.
-- The owner's hand-check of a sample of answers is recorded in `docs/review-log.md` when done.
+- The owner checked a sample of ten answers on 2026-11-12; see `docs/review-log.md`.
   It is not done yet.
 - The owner has not yet reworded the questions; the wording is the agent's.
 
