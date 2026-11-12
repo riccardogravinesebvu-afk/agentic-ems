@@ -85,7 +85,7 @@ def refuse(usage: dict = CACHED, model: str = MODEL):
 @pytest.fixture(scope="module")
 def arms(con):
     catalog = load_catalog(con)
-    return [semantic_arm(con, catalog), sql_arm(con, catalog, "Schema text.")]
+    return [semantic_arm(con, catalog), sql_arm(con, "Schema text.")]
 
 
 @pytest.fixture(scope="module")

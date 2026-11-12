@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     cursor = con.cursor()
     catalog = load_catalog(cursor)
     [(seed,)] = cursor.execute("SELECT seed FROM dataset_info").fetchall()
-    arms = [semantic_arm(con, catalog), sql_arm(con, catalog, (ROOT / "docs" / "schema.md").read_text())]
+    arms = [semantic_arm(con, catalog), sql_arm(con, (ROOT / "docs" / "schema.md").read_text())]
     arms = [arm for arm in arms if args.arm in (None, arm.name)]
     results = run_benchmark(
         make_model(effort=args.effort, max_tokens=args.max_tokens), questions, load_truth(cursor), arms,

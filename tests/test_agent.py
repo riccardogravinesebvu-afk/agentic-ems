@@ -11,7 +11,6 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from agentic_ems.agent import (
     MODEL,
     ModelMismatch,
-    build_graph,
     make_model,
     render_rows,
     run_agent,
@@ -39,7 +38,7 @@ def sem(con, catalog):
 
 @pytest.fixture(scope="module")
 def sql(con, catalog):
-    return sql_arm(con, catalog, "Schema text.")
+    return sql_arm(con, "Schema text.")
 
 
 def run(arm, *script, **kwargs):
@@ -177,7 +176,7 @@ def test_arms_differ_only_in_context_and_exec_tool(sem, sql, catalog):
     assert sem.tools[1] == sql.tools[1] and sem.tools[1]["name"] == "refuse"
     assert (sem.exec_tool, sql.exec_tool) == ("query_metric", "run_sql")
     assert sem_context["text"] == catalogue_text(catalog) + "\n\n" + meter_tree_text(catalog)
-    assert sql_context["text"] == "Schema text.\n\n" + meter_tree_text(catalog)
+    assert sql_context["text"] == "Schema text."  # docs/schema.md carries the meter tree itself
     assert {k: v for k, v in sem_context.items() if k != "text"} == {k: v for k, v in sql_context.items() if k != "text"}
 
 
@@ -287,7 +286,5 @@ def test_instructions_state_the_loop_limit(con, catalog, sem):
     assert "You have 4 tool calls in total." in sem.system[0]["text"]
     three = semantic_arm(con, catalog, max_tool_calls=3)
     assert "You have 3 tool calls in total." in three.system[0]["text"]
-    record = run_agent(ScriptedChatModel(script=[reply(*[("query_metric", BAD)] * 4)]), three, Q, max_tool_calls=3)
+    record = run_agent(ScriptedChatModel(script=[reply(*[("query_metric", BAD)] * 4)]), three, Q)
     assert len(record.calls) == 3 and record.cause == "max_tool_calls"
-    with pytest.raises(ValueError, match="3 tool calls"):
-        build_graph(ScriptedChatModel(script=[]), three)

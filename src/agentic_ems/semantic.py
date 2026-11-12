@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal, get_args
 
 import duckdb
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 Level = Literal["site", "department", "line", "machine"]
 Grain = Literal["15min", "hour", "day", "month", "total"]
@@ -69,14 +69,37 @@ class RequestError(ValueError):
 class MetricRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    metric: MetricName
-    node: str | None = None
-    breakdown: Level | None = None
-    meters: list[str] | None = None
-    start: date
-    end: date
-    grain: Grain = "total"
-    by_tariff_band: bool = False
+    metric: MetricName = Field(
+        description="The metric to compute: consumption_kwh in kWh, peak_kw in kW, cost_eur in EUR "
+        "or energy_per_unit in kWh/unit; required."
+    )
+    node: str | None = Field(
+        None,
+        description="One meter id whose own reading is used (with breakdown, the meters at that level under it "
+        "are used instead); the site when omitted.",
+    )
+    breakdown: Level | None = Field(
+        None,
+        description="A level below the node's own level; returns one row per meter at that level under node, "
+        "from each meter's own reading; no breakdown when omitted.",
+    )
+    meters: list[str] | None = Field(
+        None,
+        description="A list of meter ids whose readings are summed per interval, given instead of node; it may not "
+        "contain a meter twice, or a meter together with one of its ancestors; omitted by default.",
+    )
+    start: date = Field(description="The first plant local date of the period, included; required.")
+    end: date = Field(description="The plant local date the period ends before, excluded; required.")
+    grain: Grain = Field(
+        "total",
+        description="The time bucket each row covers, in plant local time (15min, hour, day or month), "
+        "or total, which does not split the period by time; total when omitted.",
+    )
+    by_tariff_band: bool = Field(
+        False,
+        description="Whether to split the result by tariff band (F1, F2, F3), which only consumption_kwh "
+        "and cost_eur allow; false when omitted.",
+    )
 
 
 @dataclass(frozen=True)

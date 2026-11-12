@@ -134,6 +134,11 @@ def test_tool_schema_lists_closed_sets():
     assert tool_schema()["additionalProperties"] is False
 
 
+def test_every_tool_schema_field_is_described():
+    for name, prop in tool_schema()["properties"].items():
+        assert prop.get("description", "").strip(), name
+
+
 def test_texts_are_rendered_from_the_layer(catalog):
     text = catalogue_text(catalog)
     for name in [*METRICS, *RULES]:

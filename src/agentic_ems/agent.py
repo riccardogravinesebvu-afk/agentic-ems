@@ -148,9 +148,7 @@ class State(TypedDict):
     calls: Annotated[list[dict], operator.add]  # one per executed tool call: name, args, result; its length is the count
 
 
-def build_graph(model: BaseChatModel, arm: Arm, max_tool_calls: int = MAX_TOOL_CALLS):
-    if max_tool_calls != arm.max_tool_calls:
-        raise ValueError(f"the arm's instructions state {arm.max_tool_calls} tool calls, the loop allows {max_tool_calls}")
+def build_graph(model: BaseChatModel, arm: Arm):
     bound = model.bind_tools(arm.tools)
     system = SystemMessage(arm.system)  # type: ignore[arg-type]
 
@@ -163,7 +161,7 @@ def build_graph(model: BaseChatModel, arm: Arm, max_tool_calls: int = MAX_TOOL_C
         last = state["messages"][-1]
         assert isinstance(last, AIMessage)
         for call in last.tool_calls:
-            if len(state["calls"]) + len(calls) == max_tool_calls:
+            if len(state["calls"]) + len(calls) == arm.max_tool_calls:
                 break  # calls past the limit are not run
             if call["name"] == "refuse":
                 result = ToolResult(True, "Refusal recorded.")
@@ -189,7 +187,7 @@ def build_graph(model: BaseChatModel, arm: Arm, max_tool_calls: int = MAX_TOOL_C
         return "tool_node" if isinstance(last, AIMessage) and last.tool_calls else END
 
     def after_tools(state: State) -> str:
-        done = len(state["calls"]) >= max_tool_calls or state["calls"][-1]["name"] == "refuse"
+        done = len(state["calls"]) >= arm.max_tool_calls or state["calls"][-1]["name"] == "refuse"
         return END if done else "llm_call"
 
     graph = StateGraph(State)
@@ -211,9 +209,8 @@ def _message_dict(message: BaseMessage) -> dict:
 
 
 def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model: str = MODEL,
-              max_tool_calls: int = MAX_TOOL_CALLS, callbacks: list | None = None,
-              on_text: Callable[[str], None] | None = None) -> RunRecord:
-    graph = build_graph(model, arm, max_tool_calls)
+              callbacks: list | None = None, on_text: Callable[[str], None] | None = None) -> RunRecord:
+    graph = build_graph(model, arm)
     start = {"messages": [HumanMessage(question)], "calls": []}
     config = {"callbacks": callbacks or []}
     if on_text is None:
@@ -256,7 +253,7 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
     elif successes:
         final = "rows"
     else:
-        cause = "max_tool_calls" if len(calls) >= max_tool_calls else "no_tool_call"
+        cause = "max_tool_calls" if len(calls) >= arm.max_tool_calls else "no_tool_call"
     answer = successes[-1] if final == "rows" else None
 
     return RunRecord(
