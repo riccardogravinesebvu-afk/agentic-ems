@@ -1,0 +1,15 @@
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run ruff check
+      - run: uv run mypy src
+      - run: uv run python -m agentic_ems.generator
+      - run: uv run pytest
+      - run: uv run python -m agentic_ems.benchmark.verify
