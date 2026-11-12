@@ -180,8 +180,19 @@
     the page replays without a key.
   - Left as it is: the page shows the model's text as plain text, so the Markdown tables in the
     recorded answers appear as raw markup, also in the README's screenshot. The owner was told.
-- `/cso`: not assessed. Its launcher is not installed on this machine, so it ran nothing. The
-  security review recorded above was done by a separate agent and is not `/cso`.
+- `/cso`: first not assessed, because its launcher was not installed. Run later the same day
+  at commit d02f9cd, once the launcher was built: static mode, whole repository, nothing
+  executed. Result: partial, no supported findings in the assessed scope.
+  - Read through the tool: the demo server, the MCP server, the SQL tool, the query path of
+    the semantic layer, the page, the workflow, the Python and npm manifests and the npm lock.
+  - Not covered: none of its six scanners ran (their images did not download on this machine),
+    so no secret scanner and no advisory lookup on the dependencies; the contents of past
+    commits were not inspected (the tool withheld them over its size limit); the agent module
+    was searched, not read in full; nothing was run, so every statement is from reading code.
+  - Noted, not findings: the workflow's actions are pinned by tag; when the operator sets both
+    Langfuse keys, runs are traced to Langfuse, and what is sent was not traced here; the
+    tool's redactor flagged 23 files, all false alarms (a JSX `key` attribute and the encoded
+    thinking signatures inside run transcripts).
 - `/document-release`: the design and the plan are kept as approved, each with a note at the
   top saying what changed later; `docs/stack.md` and the README were checked against the code.
   Its cross-model review step was skipped: it would send the private repository to an outside
