@@ -29,6 +29,7 @@ def test_every_column_is_in_schema_doc(con):
 def test_schema_doc_states_the_facts_the_code_holds(con):
     # The text-to-SQL arm learns these only from the doc, so the doc must not drift from the code.
     assert f"```\n{meter_tree_text(load_catalog(con))}\n```" in SCHEMA_DOC
+    assert all(round(price, 2) == price for price in PRICES.values())  # the doc prints two decimals
     assert ", ".join(f"{band} {price:.2f}" for band, price in PRICES.items()) in SCHEMA_DOC
     assert f"at most {ROW_LIMIT:,} rows" in SCHEMA_DOC
     assert f"at most {TIME_LIMIT_MS / 1000:g} seconds" in SCHEMA_DOC

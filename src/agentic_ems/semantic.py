@@ -71,7 +71,8 @@ class MetricRequest(BaseModel):
 
     metric: MetricName = Field(
         description="The metric to compute: consumption_kwh in kWh, peak_kw in kW, cost_eur in EUR "
-        "or energy_per_unit in kWh/unit; required."
+        "or energy_per_unit in kWh/unit, which needs a single line as node, or the site or a department with "
+        "breakdown line; required."
     )
     node: str | None = Field(
         None,
@@ -86,7 +87,8 @@ class MetricRequest(BaseModel):
     meters: list[str] | None = Field(
         None,
         description="A list of meter ids whose readings are summed per interval, given instead of node; it may not "
-        "contain a meter twice, or a meter together with one of its ancestors; omitted by default.",
+        "contain a meter twice, or a meter together with one of its ancestors, and it cannot be combined with "
+        "breakdown; omitted by default.",
     )
     start: date = Field(description="The first plant local date of the period, included; required.")
     end: date = Field(description="The plant local date the period ends before, excluded; required.")
