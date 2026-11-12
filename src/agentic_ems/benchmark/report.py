@@ -73,8 +73,9 @@ def build_block(results: dict) -> str:
         f"{arm} {sum(r['outcome'] in ('known_wrong', 'other_wrong') for r in of(arm))} of {len(of(arm))} runs"
         for arm in arms
     )
-    lines = [(f"**Runs that delivered a wrong value without warning** (known wrong plus other wrong, of the runs "
-              f"scored): {wrong}.")]
+    # The label says what is scored: the rows. In the recorded runs the model's text often flagged the problem.
+    lines = [(f"**Runs whose returned rows held a wrong value** (known wrong plus other wrong, of the runs "
+              f"scored; the model's text is not scored): {wrong}.")]
     if results["failure"]:
         lines += ["", f"The run failed: {results['failure']}."]
     versions = results["versions"]

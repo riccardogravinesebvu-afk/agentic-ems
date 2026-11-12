@@ -42,7 +42,11 @@ def test_the_counts_in_the_prose_are_the_counts_in_the_files():
     assert wrong("sql_schema_only") == 12 and "returned 12 wrong values in 275 runs" in README
     assert count("sql_schema_only", category="double_count") == 4 and "4 are double counts" in README
     assert wrong("sql_schema_only", group="metric_definition") == 3 and "3 are energy per unit" in README
-    assert wrong("sql_schema_only", group="unanswerable") == 5 and "5 are a value returned" in README
+    assert wrong("sql_schema_only", group="unanswerable") == 5 and "4 return the solar meter" in README
+    assert len({r["question"] for r in runs if r["arm"] == "sql_schema_only" and not r["correct"]}) == 6
+    assert "on 6 of the 55 questions" in README and "9 of those 12 runs" in README
+    inside = [r for r in runs if r["arm"] == "semantic" and r["group"] not in ("out_of_scope", "unanswerable")]
+    assert (sum(r["correct"] for r in inside), len(inside)) == (169, 170) and "169 of 170 runs" in README
     assert count("semantic", group="out_of_scope", outcome="refusal") == 35 and "refused in 35 runs" in README
     assert wrong("semantic") == wrong("semantic", group="out_of_scope") == 30 and "in 30 runs returned" in README
     questions = json.loads((ROOT / "results" / "results.json").read_text())["questions"]

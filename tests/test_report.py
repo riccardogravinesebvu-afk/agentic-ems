@@ -18,7 +18,7 @@ BELOW_MINIMUM = "below the minimum of"
 NO_DOUBLE_COUNT = "No run produced a `double_count` value."
 
 EXPECTED = """\
-**Runs that delivered a wrong value without warning** (known wrong plus other wrong, of the runs scored): semantic 0 of 8 runs, sql 3 of 8 runs.
+**Runs whose returned rows held a wrong value** (known wrong plus other wrong, of the runs scored; the model's text is not scored): semantic 0 of 8 runs, sql 3 of 8 runs.
 
 2 of 2 repeats completed, 4 questions, model claude-opus-5-5, effort high.
 

@@ -11,7 +11,7 @@ Questions in plain language about one invented manufacturing plant's energy data
 ## Results
 
 <!-- results:start -->
-**Runs that delivered a wrong value without warning** (known wrong plus other wrong, of the runs scored): semantic 30 of 275 runs, sql 0 of 275 runs, sql_schema_only 12 of 275 runs.
+**Runs whose returned rows held a wrong value** (known wrong plus other wrong, of the runs scored; the model's text is not scored): semantic 30 of 275 runs, sql 0 of 275 runs, sql_schema_only 12 of 275 runs.
 
 5 of 5 repeats completed, 55 questions, model claude-opus-5-5, effort medium.
 
@@ -97,19 +97,26 @@ Every figure above is generated from [`results/results.json`](results/results.js
 
 ### What the runs show
 
+The scorer reads the rows a run returns, because rows are what a chart or another program consumes. It does not read the model's text. Both are described here, and only the first is a score.
+
 - **With the rules written down, the model that writes SQL made no mistake.** The `sql` arm returned no wrong value in 275 runs. The premise that text-to-SQL double counts on a meter tree did not hold for this model once the rules were in its prompt.
-- **Without the rules it double counted, rarely.** The `sql_schema_only` arm returned 12 wrong values in 275 runs with no warning. 4 are double counts: a department added to its own lines or machines. 3 are energy per unit computed with a different convention for orders that cross a day. 5 are a value returned for a question that has no answer.
+- **Without the rules, its rows were sometimes wrong.** The `sql_schema_only` arm returned 12 wrong values in 275 runs, on 6 of the 55 questions.
+  - 4 are double counts, on two questions that ask in so many words for a department "plus" its own line, or for a department, its lines and its machines "added up". The benchmark counts the department's own meter as the right answer. The model added the meters as asked.
+  - 3 are energy per unit with a different convention for orders that cross the end of the period (a month, or a day). The convention the benchmark uses is a rule this arm was never given.
+  - 4 return the solar meter's production for a question about its consumption, and 1 returns null for a month outside the data instead of refusing.
+- **Its text usually said so.** In 9 of those 12 runs the model's text flagged the problem: that the sum counts energy twice and which figure to use, that the number is production and not consumption, that the data does not cover the month. In 2 it noted that its convention could shift the figures, and in 1 it said nothing. A reader of the text is warned; a program that takes the row is not. This is a reading of the transcripts by the owner's agents, not a score.
 - **That difference does not clear the bar set before the run.** A difference between arms was to be claimed, per group, only if its 95% interval excluded 0 and it was at least 5 points. Between `sql` and `sql_schema_only` no group clears it, so the counts are given as counts.
-- **The semantic layer was right inside its four metrics and returned the wrong shape outside them.** On the 13 questions that need arithmetic the layer does not have (a difference between months, a percentage, a top five), the `semantic` arm refused in 35 runs and in 30 runs returned the ingredients as rows, not the answer. The scorer reads rows only, so those 30 count as wrong values without warning. In all 30 the model's text gave the reference value and said it had computed it itself; that is a reading of the transcripts by the author's agent, not a second score.
-- **What the semantic layer buys is a guarantee, not accuracy.** It cannot build the double-counting query. The `sql` arm did not build it either, because it obeyed a document. Nothing in this run measures how often a document is disobeyed by other models, longer prompts or messier schemas.
+- **The semantic layer was right inside its four metrics and returned the wrong shape outside them.** Inside them it was right in 169 of 170 runs, with one refusal. On the 13 questions outside them (for example a difference between months, a percentage, a top five), the `semantic` arm refused in 35 runs and in 30 runs returned the ingredients as rows, not the answer, so those 30 score as wrong values. In all 30 the model's text gave the reference value, and in 24 it said it had done the arithmetic itself. That too is a reading of the transcripts, not a score.
+- **What the semantic layer buys is a guarantee, not accuracy.** It cannot return a double-counted row. The `sql` arm did not return one either, because it obeyed a document. Nothing in these runs measures how often a document is disobeyed by other models, longer prompts or messier schemas.
 
 ### Read this before quoting a number
 
 - The third arm was designed after the result of the first two was known. It was preregistered before its own first call, and the first run was not rerun, rescored or edited.
 - `sql_schema_only` lacks the whole document, not only the rules: column meanings, metric definitions, the dataset range and the guidance on questions with no answer. Its mistakes show what the document was worth, not which sentence of it.
+- That a department "plus" one of its own lines means the department's meter alone is a rule of this benchmark, which the owner accepted and which a reader may dispute. All 4 double counts depend on it.
 - One model (`claude-opus-5-5`), one day, one synthetic plant with clean data, absolute dates only, 55 questions written by an agent to resemble how plant staff ask. They are not logs of real users.
 - The reference answers were computed twice by separate writers from one specification. The owner read ten of the 47 and did not recompute them. [`docs/golden.md`](docs/golden.md) says what was and was not verified.
-- Costs are priced from the token counts in the API responses and were not checked against the invoice.
+- Costs are priced from the token counts in the API responses and were not checked against the invoice. The pilots before each run are not in the block; [`docs/review-log.md`](docs/review-log.md) gives the total.
 
 ## Run it
 
@@ -147,10 +154,10 @@ I run a system of this kind in production for seven manufacturers. That code is 
 ## How this was built
 
 - Built with Claude Code agents in two days, 2026-11-11 and 2026-11-12. The commits are in the order the work happened.
-- **Decided by the owner:** the scope and the failure to measure; the agent framework and the tracing tool; a hosted page that only replays saved answers, so a visitor can never spend a key; the license; and, after the first result came out against the premise, the third arm instead of a quieter README.
-- **Delegated to agents:** the design document, the plan, the code and its tests, the wording of the questions, both computations of the reference answers, and the reviews of each task. A list of generic error classes was prepared in a separate session and reviewed by the author; eight question types come from it.
+- **Decided by the owner:** the scope and the failure to measure; the agent framework and the tracing tool; a hosted page that only replays saved answers, so a visitor can never spend a key; the license; and, after the first result came out against the premise, the third arm.
+- **Delegated to agents:** the design document, the plan, the code and its tests, the wording of the questions, both computations of the reference answers, and the reviews of each task. A list of generic error classes was prepared in a separate session and reviewed by the owner; eight question types come from it.
 - **Discarded:** a ranking metric and a database server, both left out of version 1; one question with two defensible answers (O12) and one whose refusal was disputable; GitHub Pages as host.
-- **Checked by a second agent before money was spent:** the benchmark harness, which at first did not enforce its own budget, and the report, which would have cut the first run's numbers to match a shorter later run. Both were fixed before the affected run. [`docs/review-log.md`](docs/review-log.md) has the dated record, including what the owner did not check.
+- **Checked by a second agent before money was spent:** the benchmark harness, which at first did not count failed attempts against its budget, and the report, which would have cut the first run's numbers to match a shorter later run. The first was fixed before any paid call, the second before the affected results were read. [`docs/review-log.md`](docs/review-log.md) has the dated record, including what the owner did not check.
 
 ## Documents
 

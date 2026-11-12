@@ -115,6 +115,18 @@
   - Total spend on the model API: 13.93 EUR of 20, priced from the token counts in the
     responses, not checked against the invoice.
 
+- Correction after a fact check of the README by a second agent, which read all 42 transcripts
+  scored wrong. The entries above call those runs wrong "without warning" only in the scorer's
+  sense: the scorer reads the returned rows and not the model's text. In the text, 9 of the 12
+  `sql_schema_only` runs flagged the problem (all four double counts, the four solar runs and
+  the month outside the data), 2 noted that their convention could shift the figures and 1 said
+  nothing. Of the 30 `semantic` runs, all 30 gave the reference value in the text and 24 said
+  the model had done the arithmetic itself. The report's headline label was changed from "wrong
+  value without warning" to "returned rows held a wrong value (the model's text is not scored)".
+  No score changed. H19 and H20 ask in so many words for the sum the key counts as wrong; the
+  README says so. The same check found that the report fix was committed 73 seconds after the
+  third arm's run started, so it was in place before the results were read, not before the run.
+
 ## Owner rewording
 
 none yet
