@@ -69,6 +69,19 @@ def test_answered_question_streams_text_then_request_rows_done(con, monkeypatch)
     assert f"Today is {load_catalog(con).end_date.isoformat()}." in model.received[0][0].content[0]["text"]
 
 
+def test_several_requests_are_announced_before_the_last_one(con, monkeypatch):
+    model = ScriptedChatModel(script=[reply(("query_metric", DAILY)), reply(("query_metric", BY_DEPT)), reply(text="Done.")])
+    got = ask(con, model, Q, monkeypatch)
+    assert [name for name, _ in got][-4:] == ["note", "request", "rows", "done"]
+    assert got[-4][1] == {"requests": 2, "unfinished": False} and got[-3][1]["request"] == BY_DEPT
+
+
+def test_a_run_cut_at_the_call_limit_is_announced_as_unfinished(con, monkeypatch):
+    model = ScriptedChatModel(script=[reply(("query_metric", DAILY))] * 4)  # the limit: no closing turn follows
+    got = ask(con, model, Q, monkeypatch)
+    assert ("note", {"requests": 4, "unfinished": True}) in got and streamed_text(got) == ""
+
+
 def test_refusal_streams_the_reason(con, monkeypatch):
     model = ScriptedChatModel(script=[reply(("refuse", {"reason": "Ranking is not a metric."}))])
     got = ask(con, model, Q, monkeypatch)

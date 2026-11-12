@@ -288,6 +288,15 @@ describe("ask", () => {
   })
 })
 
+describe("replay of a sample with several requests", () => {
+  it("sends a note before the last request, and none for a sample saved without the field", async () => {
+    const names = async (sample: Sample) => (await collect((on) => replay(sample, on, 0))).map((e) => e.name)
+    expect(await names({ ...singleSample, requests: 2 })).toContain("note")
+    expect(await names({ ...singleSample, unfinished: true })).toContain("note")
+    expect(await names(singleSample)).not.toContain("note")
+  })
+})
+
 describe("textBlocks", () => {
   it("cuts a Markdown table out of the text around it", () => {
     const text = "Before **x**.\n\n| A | B |\n|---|---:|\n| 1 | 2 |\n| 3 | 4 |\n\nAfter."

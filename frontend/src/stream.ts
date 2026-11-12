@@ -13,10 +13,13 @@ export type Sample = {
   columns: string[] | null
   rows: Row[] | null
   refusal: string | null
+  requests?: number // absent in samples saved before the field existed: one request
+  unfinished?: boolean
 }
 
 export type StreamEvent =
   | { name: "text"; data: { delta: string } }
+  | { name: "note"; data: { requests: number; unfinished: boolean } }
   | { name: "request"; data: { request: MetricRequest; sql: string } }
   | { name: "rows"; data: { columns: string[]; rows: Row[] } }
   | { name: "refusal"; data: { reason: string } }
@@ -53,6 +56,8 @@ export async function replay(sample: Sample, onEvent: OnEvent, delayMs: number, 
   if (sample.refusal !== null) {
     onEvent({ name: "refusal", data: { reason: sample.refusal } })
   } else {
+    if ((sample.requests ?? 1) > 1 || sample.unfinished)
+      onEvent({ name: "note", data: { requests: sample.requests ?? 1, unfinished: sample.unfinished ?? false } })
     onEvent({ name: "request", data: { request: sample.request!, sql: sample.sql! } })
     onEvent({ name: "rows", data: { columns: sample.columns!, rows: sample.rows! } })
   }

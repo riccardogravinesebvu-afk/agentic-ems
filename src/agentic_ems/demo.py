@@ -58,8 +58,11 @@ def _answer(record: RunRecord) -> dict:
     if record.final != "rows":
         return {"request": None, "sql": None, "columns": None, "rows": None, "refusal": record.refusal_reason}
     call = next(c for c in reversed(record.calls) if c["name"] == "query_metric" and c["ok"])
+    # Several requests, or a run cut at the tool-call limit before its closing text: the rows are then only the
+    # last request's, and the page says so instead of showing them as the answer.
+    requests = sum(1 for c in record.calls if c["name"] == "query_metric" and c["ok"])
     return {"request": call["args"], "sql": call["sql"], "columns": record.columns, "rows": record.rows,
-            "refusal": None}
+            "refusal": None, "requests": requests, "unfinished": record.messages[-1]["role"] == "tool"}
 
 
 def _event(name: str, data: dict) -> str:
@@ -128,6 +131,8 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
                                    on_text=lambda delta: put(_event("text", {"delta": delta})))
                 answer = _answer(record)
                 if record.final == "rows":
+                    if answer["requests"] > 1 or answer["unfinished"]:
+                        put(_event("note", {"requests": answer["requests"], "unfinished": answer["unfinished"]}))
                     put(_event("request", {"request": answer["request"], "sql": answer["sql"]}))
                     put(_event("rows", {"columns": answer["columns"], "rows": answer["rows"]}))
                 elif record.final == "refusal":
