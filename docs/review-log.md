@@ -67,6 +67,25 @@
   text-to-SQL arm the method of each answer, and that the document would stay as it was fixed
   before the pilot rather than be changed after seeing a result.
 
+- Full benchmark run (paid), run id `20261112T135733Z`. Preregistered before the run: 55
+  questions, both arms, 5 repeats, minimum 3, cap 12 EUR; a difference between arms is claimed
+  only when its 95% interval excludes 0 and it is at least 5 points. A three-question pilot of
+  both arms (H5, M1, U1; 0.11 EUR) priced the semantic arm first.
+  - All 5 repeats completed: 550 runs, 6.82 EUR, no retry, no error, no unscored attempt.
+  - Text-to-SQL arm: 235 of 235 answerable runs correct, 40 of 40 refusals on unanswerable
+    questions. No wrong value.
+  - Semantic arm: 169 of 170 correct on hierarchy, control and metric definition (one refusal
+    on H19), 40 of 40 refusals on unanswerable questions. On the 13 out-of-scope questions, 0 of
+    65 correct: 35 refusals (O1, O2, O3, O6, O7, O11, O14) and 30 runs scored `other_wrong`
+    (O4, O5, O8, O9, O10, O13, each in all five repeats).
+  - The controller read the 30 `other_wrong` transcripts after the run. In each, the rows of
+    the last query were correct ingredients (monthly totals, daily values, all machines), and
+    the model's text stated the reference value, computed by the model, and said the tool
+    could not compute it. The scorer reads rows only, as fixed before the run, so the score
+    stands and was not changed. This reading is the controller's and is not a second score.
+  - Total spend on the model API so far: 7.05 EUR of 20 (pilots 0.23, full run 6.82), priced
+    from the token counts in the responses, not checked against the invoice.
+
 ## Owner rewording
 
 none yet

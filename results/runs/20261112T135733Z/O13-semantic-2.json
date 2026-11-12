@@ -1,0 +1,217 @@
+{
+ "question": {
+  "id": "O13",
+  "group": "out_of_scope",
+  "text": "On average per day, how much did Painting line 2 consume over all 30 days of April 2026, weekends included?\n\nAnswer with a single row with one column, value, which is a number, or null where the question has no value for that row.",
+  "keys": [],
+  "source": "error class P6",
+  "mistake": "Statistics over daily totals; averaging 15-minute rows gives a number 96 times too small.",
+  "shape_note": "One value: the mean over the 30 local days of April 2026 of Painting line 2's daily kWh."
+ },
+ "truth": {
+  "reference": [
+   [
+    "value"
+   ],
+   [
+    [
+     1950.169166666667
+    ]
+   ]
+  ],
+  "wrong": []
+ },
+ "record": {
+  "arm": "semantic",
+  "question": "On average per day, how much did Painting line 2 consume over all 30 days of April 2026, weekends included?\n\nAnswer with a single row with one column, value, which is a number, or null where the question has no value for that row.",
+  "messages": [
+   {
+    "role": "system",
+    "content": [
+     {
+      "type": "text",
+      "text": "You answer questions about the energy data of one manufacturing plant. You have 4 tool calls in total. The rows of your last successful query_metric call are your answer. If the question cannot be answered from the data, call refuse with the reason instead of returning rows. Do not ask the user questions."
+     },
+     {
+      "type": "text",
+      "text": "Metrics:\n- consumption_kwh (kWh): Energy drawn by the scope's meters, summed over the period. It can be split by tariff band.\n- peak_kw (kW): Highest coincident demand: per 15-minute interval, the scope's kWh summed and times 4, then the maximum over the period. It cannot be split by tariff band.\n- cost_eur (EUR): Energy cost: each interval's kWh times the tariff price of its band, summed. It can be split by tariff band.\n- energy_per_unit (kWh/unit): A line's own kWh divided by the units produced on it, as a ratio of totals per result cell. It cannot be split by tariff band.\nLevels: site, department, line, machine. Grains: 15min, hour, day, month, total.\nData from 2025-11-01 up to but excluding 2026-11-01.\nRules:\n- R1: A parent meter's reading includes all of its children, plus unmetered load and losses.\n- R2: A node's total is the node's own meter, never a sum of a lower level; a list of meters may never contain a meter twice, or a meter together with one of its ancestors, because the ancestor's reading already contains the descendant's energy, so the two together equal the ancestor's own reading.\n- R3: peak_kw is coincident: per interval, sum the kWh of the scope's meters and multiply by 4, then take the maximum.\n- R4: cost_eur prices each interval's kWh at the tariff of that interval's band.\n- R5: energy_per_unit is total kWh divided by total units, never an average of ratios; an order's units are spread evenly over its duration, so a period or grain boundary takes its share.\n- R6: energy_per_unit is null where no units were produced.\n- R7: The four metrics read consumption meters only; solar (generation) and battery (storage) are rejected.\n- R8: Reading timestamps are the UTC start of each 15-minute interval.\n- R9: Days, months and tariff bands use the plant's local-time columns.\n- R10: A period includes its start date and excludes its end date, in plant local dates.\n\nsite (Plant, site)\n  dept_a (Stamping, department)\n    line_a1 (Stamping line 1, line)\n      mach_a1_1 (Press 1, machine)\n      mach_a1_2 (Press 2, machine)\n      mach_a1_3 (Shear 1, machine)\n    line_a2 (Stamping line 2, line)\n      mach_a2_1 (Press 3, machine)\n      mach_a2_2 (Shear 2, machine)\n      mach_a2_3 (Shear 3, machine)\n    line_a3 (Stamping line 3, line)\n      mach_a3_1 (Press 4, machine)\n      mach_a3_2 (Press 5, machine)\n  dept_b (Welding, department)\n    line_b1 (Welding line 1, line)\n      mach_b1_1 (Welder 1, machine)\n      mach_b1_2 (Welder 2, machine)\n      mach_b1_3 (Robot 1, machine)\n    line_b2 (Welding line 2, line)\n      mach_b2_1 (Welder 3, machine)\n      mach_b2_2 (Robot 2, machine)\n      mach_b2_3 (Robot 3, machine)\n    line_b3 (Welding line 3, line)\n      mach_b3_1 (Welder 4, machine)\n      mach_b3_2 (Robot 4, machine)\n  dept_c (Painting, department)\n    line_c1 (Painting line 1, line)\n      mach_c1_1 (Oven 1, machine)\n      mach_c1_2 (Sprayer 1, machine)\n      mach_c1_3 (Sprayer 2, machine)\n    line_c2 (Painting line 2, line)\n      mach_c2_1 (Oven 2, machine)\n      mach_c2_2 (Sprayer 3, machine)\n  dept_d (Assembly, department)\n    line_d1 (Assembly line 1, line)\n      mach_d1_1 (Conveyor 1, machine)\n      mach_d1_2 (Robot 5, machine)\n      mach_d1_3 (Tester 1, machine)\n    line_d2 (Assembly line 2, line)\n      mach_d2_1 (Conveyor 2, machine)\n      mach_d2_2 (Tester 2, machine)\nbattery (Battery, storage)\nsolar (Solar array, generation)",
+      "cache_control": {
+       "type": "ephemeral"
+      }
+     }
+    ]
+   },
+   {
+    "role": "human",
+    "content": "On average per day, how much did Painting line 2 consume over all 30 days of April 2026, weekends included?\n\nAnswer with a single row with one column, value, which is a number, or null where the question has no value for that row."
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQS7gcKEAgTGAI4AUIIdGhpbmtpbmcSDFSvHx5zb99TwEpmcRoMiBsnxRbKmSuezRIpIjBeVlz95eQPlSP1YGaL7rktPLWSP8tl2a2jjUDxQ5jMS/0U0NYqEjzN4NOm9cGTyJwqiwcrDbUJlF4ALrZfaymuuKdQ+XSMtijd2sqn9zC0UUgwAgE9xeoyAp4pWiGp1Q1tuyEvRo3Y+0cMga7WZs3TZex2CcQ+nGmT63DrJx89tyHQ7nTZNZIZ0UGrtUgS4j4r6J9fALiBjoDgOusqJTsvpE2nCKySxjdPs6GQ58YfJpDHRMD/tJRty08Rt34PFr+vT+oCHczaxpApZNPJQO+Jcuz36r4Sswu0SAzh3PAgYZmpQ+SB4f3ReapzXKeNZJJvhaVUsq2F2U1PvKZ1/zKCM0yAZDPg64t7qnT4NltSpd0Nd3nkOciqnfFIghltTBCx9TeXcm6u72WegNa6uv7O+BI0rcozmEnu8muwBI1u50aIWmZQB+xRMP5ytthhuzwSTtYWObrnJifk+wexkQ+/1TL2OVMqBid4v7rriA+AVdoy5Xvw4vzDaXDGAOv917jthYX5X2SbVg0IB/TG9AQz8ZqZ5cjz5Jm49xFcyFCd3dOy4HVkWc3EsrXYtcpicRcFg+cjjEoRieqMIK5p5BozKFbB1ABTouCVbEhyQ7GBrl1XO1RSHkuJFt7MlUAg0eJcjHs1wPFKMgx8okoyXdcAJIkfGgoKABvLNMu7DijgRIUE5wMkhFMa/kIT682LvDG3ZSOAO4ZotxcgLWjdAgtAH2KrwI3qsG8iDPbHlD/dQKeGQ1AlMwfUlkjio2FQmxQSDNdUo6ixlPORK12p6duDLMvDEHmQF50mWnzwQeumLJyjMj1elVda53atJjR7WPob1EbKFu2lgrzSkJ21CGk8j0G3pFd5bUVroztbx/qz6+R/uUzKsmtgEsErsZL1FXB4TGGlTQa1KBHuuSoWe1Ku9SQ7PpsKTZuYxYpT9oBuyaRrropP+3HlcKvI+r7KUixz3K+P/3DxLK+NedmDd4GI1wQp24z6aoJyF7++aj6fVQ5vodc3GlmprDwt2XikgDY0wfnXXeoDd3hCzGElRpoAtwjkPBoPmDRGs8toPEoyzWxxrVvZX7BLZxYFY84jW0qrsJadeSVVxbBCgxmdxUXfxj4TIDX51cdFIvDJJ+ILeQqBRq83oSN9RHWtOCxvBL/qUHHQL3RhXDyFeNr0o8AelmhMFeaHcQr9oMIXd7vHbGovzdJPdXXwHRrcjUT+KzdpFqq/LVAdMNWU2TcrfkXWNi4iODgsCX+JzzG56cDIfpB112ts/0d3TSsHFazJGAE=",
+      "thinking": "I need April 2026 consumption for line_c2, so I'll pull the total and divide by 30 myself, since the tool can't do the division. The result should come back as a single row with one value column, so I'll work out the daily average from that total in my answer.\n\n",
+      "type": "thinking"
+     },
+     {
+      "id": "toolu_01CdjRJtp9LZgMHdbCrgoYF7",
+      "caller": {
+       "type": "direct"
+      },
+      "input": {
+       "metric": "consumption_kwh",
+       "node": "line_c2",
+       "start": "2026-04-01",
+       "end": "2026-05-01"
+      },
+      "name": "query_metric",
+      "type": "tool_use",
+      "toolset_name": null
+     }
+    ],
+    "tool_calls": [
+     {
+      "name": "query_metric",
+      "args": {
+       "metric": "consumption_kwh",
+       "node": "line_c2",
+       "start": "2026-04-01",
+       "end": "2026-05-01"
+      },
+      "id": "toolu_01CdjRJtp9LZgMHdbCrgoYF7",
+      "type": "tool_call"
+     }
+    ],
+    "response_metadata": {
+     "id": "msg_011CgyB5wynou2yywRYz43Ru",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "tool_use",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2704,
+      "inference_geo": "global",
+      "input_tokens": 141,
+      "output_tokens": 246,
+      "output_tokens_details": {
+       "thinking_tokens": 114
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   },
+   {
+    "role": "tool",
+    "content": "value\n58505.07499999995\n1 rows in total",
+    "tool_call_id": "toolu_01CdjRJtp9LZgMHdbCrgoYF7",
+    "status": "success"
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQS2wUKEAgTGAI4AUIIdGhpbmtpbmcSDNztIsj+i8WsU87P9xoMSf2YZFfpd3YEGqCAIjCdGhLUoVMDqPdRaR2tGUXKDzRfhbyET7gujpacqm4GD/iLoWu/KmB5qtsMVeiWhT8q+AQq12ioVXk3BcRadSB42ArDWYq9x0pv6LPsokZHPnVJbg6msewTBVfLVyeJP4T53KhtBiUpbJ3IShBL2Vpchi3JncGgtI6x+1UsAv9ZddhANnZJuVdwCd+D49KeI4ztxHV4+jkGN1Z+japq4f+5jaUH54mPhhbc98OS7yHfoogxrUSJu4Kteugi+Zog6tSOYACX4Odd8l/X9owxTI1FwdADCW0nBm/DqRccDVygmqNJQv3aWLNWoxli3sYm6QDL/5+1HYedZdH3+4g2JA81KelvOOxcvfDBNVPYRrVu3lAtB3tbM2oDQgHMJ5q3mXBwzUx94AzSusn7r5twdysPAWNbwzbXrp03WAReDgHNpfD+IS93mF5r8gegD0P5/Hb0yw8ZOWnY8dKDCHv3wi/JEnVJSAh60JPMmmM994z3gL6q6U6hopgZJomcZl3/qY7CjcwIyZaXG6nPSOvTjEFzF6oytgec95ZZv3og16V88ZZfuG/LioJnjM7EnchlZ09a2O090OAaPkHoi1dsKHvLqGu3ppBaH4d44qW77td40evG+9638FZP2vDT4BVSolJKnXEwJCz7ykM9kD0uJFOiZR2J/WtUWv8eGKRfUGP/NZY7BzeQQB4YCcsKVjxkLBWGLKGJyLB6acaB/pbdD2Z7+pi4el7xIdGmy+PW5j/1X8cPhAxaKTgFx07Y7Fa0qBbPCTAZURnQDrh0lOgCq4eRmBNlr8yukKL5zRzpUXqjht+GwYYy5wjBiR7Za40/LwxMvtHMbuR+RiMOJxOQyZA0IdYRGltWpGSng3kYUYvWOVRdl6ArrJBML/2jAIi9Y+a8W/z+U7BHCQHQAxgB",
+      "thinking": "I'm dividing 58505.075 by 30, which comes out to about 1950.169.\n\n",
+      "type": "thinking"
+     },
+     {
+      "text": "Painting line 2 used on average about **1950.17 kWh per day** in April 2026, weekends included.\n\n| value |\n|---|\n| 1950.1691667 |\n\nThis comes from the line's own meter (line_c2). From 1 April up to, but not including, 1 May 2026, it recorded 58,505.075 kWh in total. I divided that by all 30 days.",
+      "type": "text"
+     }
+    ],
+    "tool_calls": [],
+    "response_metadata": {
+     "id": "msg_011CgyB6BozLnVZWiAT913sB",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2704,
+      "inference_geo": "global",
+      "input_tokens": 408,
+      "output_tokens": 137,
+      "output_tokens_details": {
+       "thinking_tokens": 17
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "name": "query_metric",
+    "args": {
+     "metric": "consumption_kwh",
+     "node": "line_c2",
+     "start": "2026-04-01",
+     "end": "2026-05-01"
+    },
+    "ok": true,
+    "content": "value\n58505.07499999995\n1 rows in total",
+    "sql": "SELECT sum(r.kwh) AS value FROM reading r WHERE r.meter_id IN ? AND r.local_date >= ? AND r.local_date < ?"
+   }
+  ],
+  "final": "rows",
+  "columns": [
+   "value"
+  ],
+  "rows": [
+   [
+    58505.07499999995
+   ]
+  ],
+  "successful_results": [
+   [
+    [
+     "value"
+    ],
+    [
+     [
+      58505.07499999995
+     ]
+    ]
+   ]
+  ],
+  "refusal_reason": null,
+  "cause": null,
+  "usage": {
+   "input_tokens": 549,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 5408,
+   "output_tokens": 383
+  },
+  "served_model": "claude-opus-5-5"
+ },
+ "score": {
+  "outcome": "other_wrong",
+  "category": null,
+  "correct": false,
+  "earlier_correct": false
+ },
+ "cost_eur": 0.0109376,
+ "retries": 0
+}
