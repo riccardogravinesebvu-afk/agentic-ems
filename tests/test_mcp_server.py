@@ -1,10 +1,13 @@
 import json
+import sys
 
+import anyio
 import pytest
 from mcp import Client
+from mcp.client.stdio import StdioServerParameters
 from mcp.server.mcpserver.exceptions import ToolError
 
-from agentic_ems import mcp_server
+from agentic_ems import mcp_server, semantic
 from agentic_ems.semantic import catalogue_text, load_catalog, meter_tree_text
 
 PERIOD = {"start": "2026-10-19", "end": "2026-10-21"}
@@ -60,6 +63,35 @@ async def test_client_round_trip(server):
         assert refused.is_error
         assert "ancestor" in text(refused)
         assert refused.structured_content is None
+
+
+@pytest.mark.anyio
+async def test_row_limit_is_an_error_result(server, monkeypatch):
+    monkeypatch.setattr(semantic, "ROW_LIMIT", 5)
+    async with Client(server, raise_exceptions=True) as client:
+        result = await client.call_tool("query_metric", {"request": DAILY_BANDS})  # 6 rows
+    assert result.is_error
+    assert "the result has more than 5 rows" in text(result)
+
+
+@pytest.mark.anyio
+async def test_stdio_server_speaks_only_the_protocol(db_path, con):
+    start = f"import agentic_ems.mcp_server as m; m.DEFAULT_DB = {str(db_path)!r}; m.main()"
+    faults: list[Exception] = []
+
+    async def collect(message) -> None:  # the client hands a stdout line that is not JSON-RPC here
+        if isinstance(message, Exception):
+            faults.append(message)
+
+    params = StdioServerParameters(command=sys.executable, args=["-c", start])
+    with anyio.fail_after(30):  # one server start; a hung server fails the test instead of the suite
+        async with Client(params, message_handler=collect) as client:
+            tools = (await client.list_tools()).tools
+            result = await client.call_tool("list_metrics", {})
+    assert faults == []
+    assert {tool.name for tool in tools} == {"list_metrics", "list_meters", "query_metric"}
+    assert not result.is_error
+    assert text(result) == catalogue_text(load_catalog(con))
 
 
 def test_missing_database_exits_with_the_command(tmp_path, monkeypatch):
