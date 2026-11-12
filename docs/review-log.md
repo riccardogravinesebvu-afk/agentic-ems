@@ -57,9 +57,15 @@
   - Caching: the first response wrote 6,850 tokens to the cache (`cache_creation_input_tokens`);
     every later response read them.
   - Not done before the pilot: the plan asked the owner to read `docs/schema.md` first. The owner
-    approved the pilot without confirming that reading; it is still open before the full run.
+    approved the pilot without confirming that reading.
   - Eight questions and one repeat say nothing about the rate of wrong answers; the full run
     reads all 55 questions.
+
+- `docs/schema.md`. After the pilot and before the full run the owner asked to wait and read the
+  document. It was shown to the owner in full, unchanged since the pilot; the owner answered
+  "Ok" and raised no objection. The controller pointed out that rules R2, R3 and R5 hand the
+  text-to-SQL arm the method of each answer, and that the document would stay as it was fixed
+  before the pilot rather than be changed after seeing a result.
 
 ## Owner rewording
 
