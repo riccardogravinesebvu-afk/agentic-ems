@@ -1,5 +1,7 @@
 import json
 import threading
+import time
+from collections.abc import Callable
 
 import pytest
 from fakes import ScriptedChatModel, reply
@@ -15,6 +17,14 @@ BY_DEPT = {"metric": "consumption_kwh", "breakdown": "department"} | PERIOD
 BY_LINE = {"metric": "peak_kw", "meters": ["line_a1", "line_b2"]} | PERIOD
 Q = "How much electricity did the whole plant use each day?"
 LOCAL = "http://127.0.0.1:8000"
+
+
+def until(done: Callable[[], bool], limit_s: float = 10.0) -> None:
+    """Polls on the monotonic clock: on this Python build timed lock waits end on the wall clock, which the host steps."""
+    deadline = time.monotonic() + limit_s
+    while not done():
+        assert time.monotonic() < deadline, f"not done within {limit_s:g} seconds"
+        time.sleep(0.01)
 
 
 def events(body: str) -> list[tuple[str, dict]]:
@@ -154,7 +164,7 @@ def test_a_second_question_while_one_runs_is_busy(con, monkeypatch):
     def factory():
         built.append(1)
         entered.set()
-        assert release.wait(10)
+        until(release.is_set)
         return model
 
     app = demo.build_app(con, factory)
@@ -162,11 +172,11 @@ def test_a_second_question_while_one_runs_is_busy(con, monkeypatch):
     thread = threading.Thread(target=lambda: first.append(post(app, Q)))
     thread.start()
     try:
-        assert entered.wait(10)
+        until(entered.is_set)
         busy = post(app, Q)
     finally:
         release.set()
-        thread.join(10)
+        until(lambda: not thread.is_alive())
     assert [name for name, _ in busy] == ["error", "done"] and "busy" in busy[0][1]["message"]
     assert first[0][-2] == ("refusal", {"reason": "no"}) and len(built) == 1
     assert post(app, Q)[-2] == ("refusal", {"reason": "again"})  # the run's end frees the server

@@ -98,6 +98,20 @@ def test_peak_is_coincident(con, catalog):
     assert value <= sum(separate.values())
 
 
+def test_peak_per_line_and_day_is_each_line_meter_s_own(con, catalog):
+    compiled, rows = run(con, catalog, metric="peak_kw", node="dept_a", breakdown="line", grain="day")
+    assert compiled.columns == ["meter_id", "bucket_start", "value"]
+    expected: dict[tuple[str, str], float] = defaultdict(float)
+    lines = [m.id for m in catalog.meters.values() if m.parent_id == "dept_a"]
+    for meter_id, day, kwh in con.execute(
+        "SELECT meter_id, day_start, kwh FROM reading WHERE meter_id IN ? AND local_date >= ? AND local_date < ?",
+        [lines, PERIOD["start"], PERIOD["end"]],
+    ).fetchall():
+        expected[(meter_id, day)] = max(expected[(meter_id, day)], kwh * 4)
+    assert len(rows) == len(expected) == 3 * 13
+    assert {(meter_id, day): value for meter_id, day, value in rows} == pytest.approx(expected)
+
+
 def test_cost_uses_interval_tariff(con, catalog):
     _, [(value,)] = run(con, catalog, metric="cost_eur")
     prices = dict(con.execute("SELECT tariff_band, price_eur_per_kwh FROM tariff").fetchall())

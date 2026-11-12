@@ -25,8 +25,6 @@ from agentic_ems.semantic import (
 
 QUESTIONS = load_questions()
 REQUESTS = {qid: entry["request"] for qid, entry in tomllib.loads(REFERENCE_SQL.read_text()).items() if "request" in entry}
-# Ids where the compiler disagrees with the reference, each awaiting the controller's ruling.
-AWAITING: set[str] = set()
 
 
 def record(final="rows", columns=None, rows=None, successful=None, cause=None) -> RunRecord:
@@ -78,15 +76,7 @@ def test_reference_scores_correct_for_every_question(truth):
     assert all(s.correct for s in scores), [q.id for q, s in zip(QUESTIONS, scores) if not s.correct]
 
 
-@pytest.mark.parametrize(
-    "qid",
-    [
-        pytest.param(qid, marks=pytest.mark.xfail(strict=True, reason=f"{qid}: awaiting controller ruling"))
-        if qid in AWAITING
-        else qid
-        for qid in REQUESTS
-    ],
-)
+@pytest.mark.parametrize("qid", list(REQUESTS))
 def test_compiler_agrees_with_every_reference(qid, truth, full_con):
     q = next(q for q in QUESTIONS if q.id == qid)
     catalog = load_catalog(full_con.cursor())

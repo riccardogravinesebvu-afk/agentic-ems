@@ -2,6 +2,9 @@ import hashlib
 import json
 import os
 import threading
+import time
+from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 import anthropic
@@ -29,6 +32,14 @@ CACHED = USAGE | {"cache_read_input_tokens": 100}
 DOLLAR = USAGE | {"input_tokens": 0, "output_tokens": 50_000, "cache_read_input_tokens": 1}  # just over 1 USD
 TRUTH = Truth((["value"], [(1.0,)]), [("double_count", ["value"], [(2.0,)])])
 REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")  # never sent
+
+
+def until(done: Callable[[], bool], limit_s: float = 10.0) -> None:
+    """Polls on the monotonic clock: on this Python build timed lock waits end on the wall clock, which the host steps."""
+    deadline = time.monotonic() + limit_s
+    while not done():
+        assert time.monotonic() < deadline, f"not done within {limit_s:g} seconds"
+        time.sleep(0.01)
 
 
 def connection_error() -> anthropic.APIConnectionError:
@@ -62,7 +73,7 @@ class HangingModel(FlakyModel):
         if self.calls == 0:
             self.calls += 1
             self.hung = threading.current_thread()
-            self.release.wait()  # untimed: a timed wait here can end early when the wall clock steps
+            until(self.release.is_set)
             return ChatResult(generations=[ChatGeneration(message=self.late)])
         return super()._generate(messages, stop, run_manager, **kwargs)
 
@@ -210,9 +221,8 @@ def test_run_over_the_wall_clock_limit_makes_no_new_request(bench, tmp_path):
         calls = model.calls
     finally:
         model.release.set()
-    for thread in threading.enumerate():
-        if thread.name == "benchmark-attempt":
-            thread.join()  # released, it ends: the meter refuses its next call
+    # Released, the attempt ends: the meter refuses its next call.
+    until(lambda: all(thread.name != "benchmark-attempt" for thread in threading.enumerate()))
     [error] = errors(tmp_path)
     assert error["cause"] == "RunTimeout" and error["arm"] == "semantic"
     assert [(r["arm"], r["outcome"], r["retries"]) for r in results["runs"]] == [
@@ -276,14 +286,14 @@ def test_the_run_limit_is_measured_on_the_monotonic_clock(monkeypatch):
     thread = threading.Thread(target=release.wait, daemon=True)
     thread.start()
     ticks = iter(range(100))
-    monkeypatch.setattr(run_module.time, "monotonic", lambda: float(next(ticks)))
-    monkeypatch.setattr(run_module.time, "sleep", lambda seconds: None)
+    # Only the clock the harness sees: the test's own waits keep the real one.
+    monkeypatch.setattr(run_module, "time", SimpleNamespace(monotonic=lambda: float(next(ticks)), sleep=lambda s: None))
     try:
         run_module._wait(thread, 3.0)  # returns after three ticks of the monotonic clock, alive
         assert thread.is_alive() and next(ticks) == 4
     finally:
         release.set()
-        thread.join()
+        until(lambda: not thread.is_alive())
     run_module._wait(thread, 3.0)  # an ended thread returns at once
     assert next(ticks) == 6
 

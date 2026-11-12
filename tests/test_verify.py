@@ -18,8 +18,6 @@ from agentic_ems.semantic import load_catalog, open_db
 
 QUESTIONS = load_questions()
 ANSWERABLE = [q for q in QUESTIONS if q.group != "unanswerable"]
-# Ids whose two computations disagree, each awaiting the controller's ruling.
-AWAITING: set[str] = set()
 
 
 @pytest.fixture(scope="module")
@@ -37,15 +35,7 @@ def data(full_con):
     return Data(full_con.cursor(), load_catalog(full_con))
 
 
-@pytest.mark.parametrize(
-    "question",
-    [
-        pytest.param(q, id=q.id, marks=pytest.mark.xfail(strict=True, reason=f"{q.id}: awaiting controller ruling"))
-        if q.id in AWAITING
-        else pytest.param(q, id=q.id)
-        for q in ANSWERABLE
-    ],
-)
+@pytest.mark.parametrize("question", [pytest.param(q, id=q.id) for q in ANSWERABLE])
 def test_both_computations_agree(question, truth, data):
     reference = truth[question.id].reference
     assert reference is not None

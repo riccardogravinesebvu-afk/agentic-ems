@@ -11,7 +11,7 @@ dependencies = [
     "langgraph==1.2.20",
     "mcp==2.3.0",
     "pydantic==2.14.3",
-    "pytz==2026.6",
+    "pytz==2026.6",  # not imported by src: DuckDB needs it to return time zone values (TIMESTAMPTZ) to Python
     "sqlglot==30.31.0",
     "starlette==1.10.0",
     "uvicorn==0.54.0",
