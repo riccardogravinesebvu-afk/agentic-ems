@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ask, chartKind, formatBucket, formatValue, headline, keyFormatter, pivot, replay, unitOf, type Sample, type StreamEvent } from "./stream"
+import { ask, chartKind, formatBucket, formatValue, headline, keyFormatter, pivot, replay, textBlocks, unitOf, type Sample, type StreamEvent } from "./stream"
 import { breakdownSample, refusalSample, seriesSample, singleSample } from "./test-fixtures"
 
 async function collect(run: (onEvent: (e: StreamEvent) => void) => Promise<void>): Promise<StreamEvent[]> {
@@ -283,5 +283,19 @@ describe("ask", () => {
     vi.stubGlobal("fetch", vi.fn(async () => sseResponse(['event: text\ndata: {"delta": "Test"}\n\nevent: te'])))
     const events = await collect((on) => ask("q", on))
     expect(events.map((e) => e.name)).toEqual(["text", "error", "done"])
+  })
+})
+
+describe("textBlocks", () => {
+  it("cuts a Markdown table out of the text around it", () => {
+    const text = "Before **x**.\n\n| A | B |\n|---|---:|\n| 1 | 2 |\n| 3 | 4 |\n\nAfter."
+    expect(textBlocks(text)).toEqual([
+      { kind: "text", text: "Before **x**." },
+      { kind: "table", header: ["A", "B"], rows: [["1", "2"], ["3", "4"]] },
+      { kind: "text", text: "After." },
+    ])
+  })
+  it("leaves a table whose separator has not streamed in yet as text", () => {
+    expect(textBlocks("| A | B |")).toEqual([{ kind: "text", text: "| A | B |" }])
   })
 })

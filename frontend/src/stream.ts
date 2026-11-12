@@ -204,3 +204,31 @@ export function pivot(columns: string[], rows: Row[]) {
   }
   return { xName, data: [...points.values()], series }
 }
+
+export type TextBlock = { kind: "text"; text: string } | { kind: "table"; header: string[]; rows: string[][] }
+
+const cells = (line: string) => line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim())
+
+/** The model's text cut into paragraphs and Markdown tables; a table counts once its separator line has arrived. */
+export function textBlocks(text: string): TextBlock[] {
+  const lines = text.split("\n")
+  const blocks: TextBlock[] = []
+  let plain: string[] = []
+  const flush = () => {
+    const joined = plain.join("\n").trim()
+    if (joined) blocks.push({ kind: "text", text: joined })
+    plain = []
+  }
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith("|") && /^\|[\s:|-]+\|\s*$/.test(lines[i + 1] ?? "")) {
+      flush()
+      const header = cells(lines[i])
+      const rows: string[][] = []
+      for (i += 2; i < lines.length && lines[i].startsWith("|"); i++) rows.push(cells(lines[i]))
+      i--
+      blocks.push({ kind: "table", header, rows })
+    } else plain.push(lines[i])
+  }
+  flush()
+  return blocks
+}

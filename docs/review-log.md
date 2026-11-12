@@ -180,6 +180,8 @@
     the page replays without a key.
   - Left as it is: the page shows the model's text as plain text, so the Markdown tables in the
     recorded answers appear as raw markup, also in the README's screenshot. The owner was told.
+    Fixed later the same day at the owner's word: the page now shows those tables as tables and
+    `**bold**` as bold (lists stay plain text), and the screenshot was taken again.
 - `/cso`: first not assessed, because its launcher was not installed. Run later the same day
   at commit d02f9cd, once the launcher was built: static mode, whole repository, nothing
   executed. Result: partial, no supported findings in the assessed scope.

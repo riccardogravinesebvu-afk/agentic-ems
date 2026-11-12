@@ -19,6 +19,7 @@ import {
   keyFormatter,
   pivot,
   replay,
+  textBlocks,
   unitOf,
   type MetricRequest,
   type Row,
@@ -78,6 +79,11 @@ function isIndex(value: unknown): value is Entry[] {
     Array.isArray(value) &&
     value.every((e) => typeof e?.file === "string" && typeof e?.question === "string")
   )
+}
+
+/** `**x**` in the model's text as bold; everything else stays plain text. */
+function bold(text: string) {
+  return text.split(/\*\*(.+?)\*\*/).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))
 }
 
 export default function App() {
@@ -226,7 +232,24 @@ export default function App() {
                 {answered && view.rows!.length === 0 && <p className="font-medium">No rows for this request.</p>}
                 {view.refusal !== null && <p className="font-medium">Out of scope: {view.refusal}</p>}
                 {view.error !== null && <p className="font-medium text-destructive">Error: {view.error}</p>}
-                {view.text && <p className="whitespace-pre-wrap">{view.text}</p>}
+                {textBlocks(view.text).map((block, i) =>
+                  block.kind === "text" ? (
+                    <p key={i} className="whitespace-pre-wrap">{bold(block.text)}</p>
+                  ) : (
+                    <div key={i} className="overflow-x-auto">
+                      <table className="text-sm tabular-nums">
+                        <thead>
+                          <tr>{block.header.map((cell, c) => <th key={c} scope="col" className="border-b px-2 py-1 text-left font-medium">{bold(cell)}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {block.rows.map((row, r) => (
+                            <tr key={r}>{row.map((cell, c) => <td key={c} className="border-b px-2 py-1">{bold(cell)}</td>)}</tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ),
+                )}
                 {view.streaming && <p className="text-sm text-muted-foreground">Streaming...</p>}
               </div>
             </CardContent>
