@@ -9,10 +9,14 @@ dependencies = [
     "langchain-core==1.8.0",
     "langfuse==5.2.0",
     "langgraph==1.2.20",
+    "mcp==2.3.0",
     "pydantic==2.14.3",
     "pytz==2026.6",
     "sqlglot==30.31.0",
 ]
+
+[project.scripts]
+agentic-ems-mcp = "agentic_ems.mcp_server:main"
 
 [dependency-groups]
 dev = ["httpx2==2.16.0", "pytest==9.2.0", "ruff", "mypy"]
