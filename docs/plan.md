@@ -54,7 +54,7 @@ src/agentic_ems/
 frontend/             Vite + React + shadcn, one page; public/samples/*.json
 tests/                one test file per module
 docs/                 schema.md, golden.md, review-log.md, video-script.md
-.github/workflows/    test.yml, pages.yml (manual trigger only)
+.github/workflows/    test.yml
 ```
 
 The database is written to `data/plant.duckdb`, which is ignored by git.
@@ -453,7 +453,7 @@ Read the shadcn/ui Vite install page and chart component page first. Load the `f
 
 **Files:** Create `frontend/` (Vite, React, TypeScript, Tailwind, shadcn `button`, `input`, `card`, `chart`), `frontend/src/App.tsx`, `frontend/src/stream.ts`, `frontend/src/stream.test.ts`.
 
-**Behaviour:** One page with four elements: question input with the four sample buttons, streamed answer, chart, structured request with the compiled SQL inside the same panel. The headline number is rendered from the rows, formatted in code; the model's text is shown under it. Chart: line for rows with `bucket_start`, bars for rows with `meter_id` or `tariff_band` and no `bucket_start`, none for a single value, a refusal or an error. On load the page calls `GET /api/health`; if it fails, free text is disabled and one line reads "Recorded answers. For your own questions, clone the repository and run `uv run python -m agentic_ems.demo serve`." Vite `base` is `./` and samples are fetched with relative paths, so the same build works on localhost and under a GitHub Pages sub-path. A sample click replays its JSON as a stream with a timer; in local mode a typed question goes to `POST /api/ask`. States: streaming, out of scope, no API key, error.
+**Behaviour:** One page with four elements: question input with the four sample buttons, streamed answer, chart, structured request with the compiled SQL inside the same panel. The headline number is rendered from the rows, formatted in code; the model's text is shown under it. Chart: line for rows with `bucket_start`, bars for rows with `meter_id` or `tariff_band` and no `bucket_start`, none for a single value, a refusal or an error. On load the page calls `GET /api/health`; if it fails, free text is disabled and one line reads "Recorded answers. For your own questions, clone the repository and run `uv run python -m agentic_ems.demo serve`." Vite `base` is `./` and samples are fetched with relative paths, so the same build works on localhost and under any hosted path. A sample click replays its JSON as a stream with a timer; in local mode a typed question goes to `POST /api/ask`. States: streaming, out of scope, no API key, error.
 
 `stream.ts` exports `replay(sample, onEvent, delayMs)`, `ask(question, onEvent)` and `chartKind(columns, rows)`, both emitting the event names of Task 15, so `App.tsx` has one code path.
 
@@ -463,10 +463,10 @@ Read the shadcn/ui Vite install page and chart component page first. Load the `f
 
 ### Task 17: README, video script and workflows
 
-**Files:** Create `README.md`, `docs/video-script.md`, `.github/workflows/test.yml`, `.github/workflows/pages.yml`, `tests/test_readme.py`.
+**Files:** Create `README.md`, `docs/video-script.md`, `.github/workflows/test.yml`, `tests/test_readme.py`.
 
 - README, in this order: the opening sentence fixed by the spec's Constraints, word for word; the generated results block between its markers; (the block already contains the double-counting example or the spec's "no run produced it" statement); how to run (generate, test, verify, local demo, MCP); "Why this exists" with the spec's fixed text, word for word; "How this was built" with facts from the design document and `git log` only; limits; links to `docs/`. The repository is never called a port, extract or public version of anything. Every number outside the results block is absent or is a fact about the code.
-- `test.yml`: on push, `uv sync`, `ruff check`, `mypy src`, generate, `uv run pytest`, `verify`. `pages.yml`: `workflow_dispatch` only, builds `frontend` and deploys `dist` to GitHub Pages. Neither is pushed in this task.
+- `test.yml`: on push, `uv sync`, `ruff check`, `mypy src`, generate, `uv run pytest`, `verify`. The page is hosted on Vercel as a static site built from `frontend/` (owner's decision, 2026-11-12); there is no deploy workflow, and the deploy itself is an owner-approved step after this task. The workflow is not pushed in this task.
 - `docs/video-script.md`: reads aloud in two minutes (at most 300 words).
 - `tests/test_readme.py`: the block in `README.md` equals `build_block(results/results.json)`; the two fixed sentences are present verbatim; the phrases "a port of", "an extract of" and "public version" do not appear, in any letter case.
 
