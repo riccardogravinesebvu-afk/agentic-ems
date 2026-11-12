@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ask, chartKind, formatValue, headline, replay, unitOf, type StreamEvent } from "./stream"
+import { ask, chartKind, formatBucket, formatValue, headline, pivot, replay, unitOf, type Sample, type StreamEvent } from "./stream"
 import { breakdownSample, refusalSample, seriesSample, singleSample } from "./test-fixtures"
 
 async function collect(run: (onEvent: (e: StreamEvent) => void) => Promise<void>): Promise<StreamEvent[]> {
@@ -37,6 +37,30 @@ describe("replay", () => {
     expect(texts(events)).toBe(refusalSample.text)
     expect(events.at(-2)).toEqual({ name: "refusal", data: { reason: refusalSample.refusal } })
   })
+
+  it("ends a malformed sample with error and done", async () => {
+    for (const bad of [{}, { ...seriesSample, rows: null }, { ...seriesSample, text: 3 }, null]) {
+      const events = await collect((on) => replay(bad as unknown as Sample, on, 0))
+      expect(events.map((e) => e.name)).toEqual(["error", "done"])
+    }
+  })
+
+  it("stops and clears its timer when its signal aborts", async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const events: StreamEvent[] = []
+      void replay(seriesSample, (e) => events.push(e), 1000, controller.signal)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(events.length).toBe(1)
+      controller.abort()
+      expect(vi.getTimerCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(events.length).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("chartKind", () => {
@@ -59,23 +83,61 @@ describe("units and numbers", () => {
     expect(unitOf(undefined)).toBe("")
   })
 
-  it("formats a value with its unit in code", () => {
-    expect(formatValue(99999.9, "EUR")).toBe("100,000 EUR")
-    expect(formatValue(12.345, "kWh")).toBe("12.35 kWh")
-    expect(formatValue(0.12345, "kWh per unit")).toBe("0.123 kWh per unit")
+  it("formats a value with its unit in code: one decimal below 1,000, none from 1,000 up", () => {
+    expect(formatValue(436.72, "kW")).toBe("436.7 kW")
+    expect(formatValue(999.94, "kWh")).toBe("999.9 kWh")
+    expect(formatValue(12.0, "kWh")).toBe("12 kWh")
+    expect(formatValue(3.64, "kWh per unit")).toBe("3.6 kWh per unit")
     expect(formatValue(1234.5678, "")).toBe("1,235")
+    expect(formatValue(99999.9, "EUR")).toBe("100,000 EUR")
     expect(formatValue(null, "kWh")).toBe("no value")
+  })
+
+  it("formats a bucket from its own string, with no time zone conversion", () => {
+    expect(formatBucket("2026-03-25T00:00:00+01:00")).toBe("2026-03-25")
+    expect(formatBucket("2026-03-29T03:00:00+02:00")).toBe("2026-03-29 03:00")
+    expect(formatBucket("2026-07-01T00:00:00+02:00")).toBe("2026-07-01")
+    expect(formatBucket("2026-10-25T02:45:00+01:00")).toBe("2026-10-25 02:45")
+    expect(formatBucket("not a bucket")).toBe("not a bucket")
   })
 
   it("takes the headline from the rows: the value, or the highest value and its label", () => {
     expect(headline(singleSample.columns!, singleSample.rows!)).toEqual({ value: 1234.5678, label: null })
-    expect(headline(breakdownSample.columns!, breakdownSample.rows!)).toEqual({ value: 99999.9, label: "test_meter_b" })
-    expect(headline(["meter_id", "bucket_start", "value"], [["m1", "d1", 1], ["m2", "d2", 5]])).toEqual({
-      value: 5,
-      label: "m2, d2",
+    expect(headline(breakdownSample.columns!, breakdownSample.rows!)).toEqual({
+      value: 99999.9,
+      label: "highest, test_meter_b",
     })
+    expect(headline(seriesSample.columns!, seriesSample.rows!)).toEqual({ value: 333.3, label: "highest, 2001-01-03" })
+    expect(
+      headline(["meter_id", "bucket_start", "value"], [["m1", "2001-01-01T06:15:00+01:00", 1], ["m2", "2001-01-01T00:00:00+01:00", 5]]),
+    ).toEqual({ value: 5, label: "highest, m2, 2001-01-01" })
     expect(headline(["meter_id", "value"], [["m1", null]])).toEqual({ value: null, label: "m1" })
+    expect(headline(["meter_id", "value"], [["m1", null], ["m2", null]])).toEqual({ value: null, label: null })
     expect(headline(["value"], [])).toBeNull()
+  })
+
+  it("pivots rows to chart points: time in order, buckets formatted, one series per other key", () => {
+    const columns = ["meter_id", "bucket_start", "value"]
+    const rows = [
+      ["m1", "2026-10-25T02:00:00+01:00", 3],
+      ["m1", "2026-10-25T02:00:00+02:00", 2],
+      ["m1", "2026-10-25T01:00:00+02:00", 1],
+      ["m2", "2026-10-25T01:00:00+02:00", 9],
+    ]
+    expect(pivot(columns, rows)).toEqual({
+      xName: "bucket_start",
+      series: ["m1", "m2"],
+      data: [
+        { x: "2026-10-25 01:00", s0: 1, s1: 9 },
+        { x: "2026-10-25 02:00", s0: 2 },
+        { x: "2026-10-25 02:00", s0: 3 },
+      ],
+    })
+    expect(pivot(breakdownSample.columns!, [["b", 1], ["a", 2]])).toEqual({
+      xName: "meter_id",
+      series: ["value"],
+      data: [{ x: "b", s0: 1 }, { x: "a", s0: 2 }],
+    })
   })
 })
 
@@ -163,6 +225,30 @@ describe("ask", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed") }))
     const events = await collect((on) => ask("q", on))
     expect(events.map((e) => e.name)).toEqual(["error", "done"])
+  })
+
+  it("skips comment lines and blocks with no data", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      ': keep-alive\n\nevent: text\n\nevent: text\n: a comment\ndata: {"delta": "Test"}\n\nevent: done\ndata: {}\n\n',
+    ])))
+    const events = await collect((on) => ask("q", on))
+    expect(events).toEqual([{ name: "text", data: { delta: "Test" } }, { name: "done", data: {} }])
+  })
+
+  it("cancels the body when an event cannot be parsed", async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode("event: text\ndata: {not json\n\n"))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })))
+    const events = await collect((on) => ask("q", on))
+    expect(events.map((e) => e.name)).toEqual(["error", "done"])
+    expect(cancelled).toBe(true)
   })
 
   it("ends a stream cut before done with one error event and done", async () => {

@@ -14,11 +14,12 @@ import { Input } from "@/components/ui/input"
 import {
   ask,
   chartKind,
+  formatKey,
   formatValue,
   headline,
+  pivot,
   replay,
   unitOf,
-  type Cell,
   type MetricRequest,
   type Row,
   type Sample,
@@ -112,7 +113,7 @@ export default function App() {
   }
 
   function playSample(entry: Entry) {
-    start(entry.question, async (onEvent) => {
+    start(entry.question, async (onEvent, signal) => {
       let sample: Sample
       try {
         const response = await fetch(`samples/${entry.file}`)
@@ -123,7 +124,7 @@ export default function App() {
         onEvent({ name: "done", data: {} })
         return
       }
-      await replay(sample, onEvent, REPLAY_DELAY_MS)
+      await replay(sample, onEvent, REPLAY_DELAY_MS, signal)
     })
   }
 
@@ -160,6 +161,7 @@ export default function App() {
               onChange={(e) => setDraft(e.target.value)}
               maxLength={MAX_QUESTION_CHARS}
               disabled={!freeText}
+              aria-describedby={mode === "static" || mode === "nokey" ? "question-note" : undefined}
               className="h-10"
             />
             <Button type="submit" className="h-10 px-4" disabled={!freeText || view.streaming || !draft.trim()}>
@@ -167,13 +169,13 @@ export default function App() {
             </Button>
           </div>
           {mode === "static" && (
-            <p className="text-sm text-muted-foreground">
+            <p id="question-note" className="text-sm text-muted-foreground">
               Recorded answers. For your own questions, clone the repository and run{" "}
               <code className="font-mono text-foreground">uv run python -m agentic_ems.demo serve</code>.
             </p>
           )}
           {mode === "nokey" && (
-            <p className="text-sm text-muted-foreground">
+            <p id="question-note" className="text-sm text-muted-foreground">
               Set <code className="font-mono text-foreground">ANTHROPIC_API_KEY</code> in the server's environment to
               ask your own question. The recorded answers still work.
             </p>
@@ -218,13 +220,10 @@ export default function App() {
                 {top && (
                   <p>
                     <span className="text-3xl font-semibold tabular-nums">{formatValue(top.value, unit)}</span>
-                    {top.label && (
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        {view.rows!.length > 1 ? `highest, ${top.label}` : top.label}
-                      </span>
-                    )}
+                    {top.label && <span className="ml-2 text-sm text-muted-foreground">{top.label}</span>}
                   </p>
                 )}
+                {answered && view.rows!.length === 0 && <p className="font-medium">No rows for this request.</p>}
                 {view.refusal !== null && <p className="font-medium">Out of scope: {view.refusal}</p>}
                 {view.error !== null && <p className="font-medium text-destructive">Error: {view.error}</p>}
                 {view.text && <p className="whitespace-pre-wrap">{view.text}</p>}
@@ -246,7 +245,9 @@ export default function App() {
             <div className="flex flex-col gap-1">
               <h3 className="text-sm text-muted-foreground">Written by the model</h3>
               {view.request ? (
-                <pre className="overflow-x-auto font-mono text-sm">{JSON.stringify(view.request, null, 2)}</pre>
+                <pre className="font-mono text-sm whitespace-pre-wrap wrap-anywhere">
+                  {JSON.stringify(view.request, null, 2)}
+                </pre>
               ) : (
                 <p className="text-sm text-muted-foreground">None for this answer.</p>
               )}
@@ -254,7 +255,7 @@ export default function App() {
             <div className="flex flex-col gap-1">
               <h3 className="text-sm text-muted-foreground">SQL, written by the compiler, not the model</h3>
               {view.sql ? (
-                <pre className="overflow-x-auto font-mono text-sm">{view.sql}</pre>
+                <pre className="font-mono text-sm whitespace-pre-wrap wrap-anywhere">{view.sql}</pre>
               ) : (
                 <p className="text-sm text-muted-foreground">None for this answer.</p>
               )}
@@ -264,23 +265,6 @@ export default function App() {
       </div>
     </main>
   )
-}
-
-/** One point per x value, one series per combination of the other key columns. */
-function pivot(columns: string[], rows: Row[]) {
-  const at = columns.indexOf("value")
-  const x = columns.indexOf(["bucket_start", "meter_id", "tariff_band"].find((c) => columns.includes(c))!)
-  const others = columns.map((_, i) => i).filter((i) => i !== at && i !== x)
-  const series: string[] = []
-  const points = new Map<string, Record<string, Cell>>()
-  for (const row of rows) {
-    const name = others.length ? others.map((i) => String(row[i])).join(", ") : "value"
-    if (!series.includes(name)) series.push(name)
-    const point = points.get(String(row[x])) ?? { x: String(row[x]) }
-    point[`s${series.indexOf(name)}`] = row[at]
-    points.set(String(row[x]), point)
-  }
-  return { xName: columns[x], data: [...points.values()], series }
 }
 
 function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; unit: string; metric: unknown }) {
@@ -297,7 +281,7 @@ function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; un
       <CartesianGrid vertical={false} />
       <XAxis dataKey="x" tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} />
       <YAxis tickLine={false} axisLine={false} width={72} tickFormatter={(v: number) => formatValue(v, "")} />
-      <ChartTooltip content={<ChartTooltipContent />} />
+      <ChartTooltip content={<ChartTooltipContent valueFormatter={(v) => formatValue(v, unit)} />} />
       {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
     </>
   )
@@ -317,14 +301,22 @@ function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; un
               <LineChart accessibilityLayer data={data}>
                 {axes}
                 {keys.map((k) => (
-                  <Line key={k} dataKey={k} type="linear" stroke={`var(--color-${k})`} strokeWidth={2} dot={false} />
+                  <Line
+                    key={k}
+                    dataKey={k}
+                    type="linear"
+                    stroke={`var(--color-${k})`}
+                    strokeWidth={2}
+                    dot={data.length === 1}
+                    isAnimationActive={false}
+                  />
                 ))}
               </LineChart>
             ) : (
               <BarChart accessibilityLayer data={data}>
                 {axes}
                 {keys.map((k) => (
-                  <Bar key={k} dataKey={k} fill={`var(--color-${k})`} radius={4} />
+                  <Bar key={k} dataKey={k} fill={`var(--color-${k})`} radius={4} isAnimationActive={false} />
                 ))}
               </BarChart>
             )}
@@ -349,7 +341,7 @@ function Chart(props: { kind: "line" | "bar"; columns: string[]; rows: Row[]; un
                   <tr key={r}>
                     {row.map((cell, i) => (
                       <td key={i} className="border-b py-1 pr-4 tabular-nums">
-                        {columns[i] === "value" ? formatValue(cell, unit) : String(cell)}
+                        {columns[i] === "value" ? formatValue(cell, unit) : formatKey(columns[i], cell)}
                       </td>
                     ))}
                   </tr>
