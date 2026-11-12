@@ -1,0 +1,333 @@
+{
+ "question": {
+  "id": "C6",
+  "group": "control",
+  "text": "Shear 2 kWh month by month, February to April 2026\n\nAnswer with one row per bucket_start, with these columns in this order: bucket_start, the start of the time bucket in plant local time as ISO 8601 text with the UTC offset, for example 2026-03-18T14:00:00+01:00; value, which is a number, or null where the question has no value for that row.",
+  "keys": [
+   "bucket_start"
+  ],
+  "source": "public standard",
+  "mistake": "Month boundaries in local time, not UTC.",
+  "shape_note": "Period 2026-02-01 to 2026-05-01, three monthly rows."
+ },
+ "truth": {
+  "reference": [
+   [
+    "bucket_start",
+    "value"
+   ],
+   [
+    [
+     "2026-02-01T00:00:00+01:00",
+     17142.182000000023
+    ],
+    [
+     "2026-03-01T00:00:00+01:00",
+     19114.749999999978
+    ],
+    [
+     "2026-04-01T00:00:00+02:00",
+     18845.847000000005
+    ]
+   ]
+  ],
+  "wrong": []
+ },
+ "record": {
+  "arm": "sql_schema_only",
+  "question": "Shear 2 kWh month by month, February to April 2026\n\nAnswer with one row per bucket_start, with these columns in this order: bucket_start, the start of the time bucket in plant local time as ISO 8601 text with the UTC offset, for example 2026-03-18T14:00:00+01:00; value, which is a number, or null where the question has no value for that row.",
+  "messages": [
+   {
+    "role": "system",
+    "content": [
+     {
+      "type": "text",
+      "text": "You answer questions about the energy data of one manufacturing plant. You have 4 tool calls in total. The rows of your last successful run_sql call are your answer. If the question cannot be answered from the data, call refuse with the reason instead of returning rows. Do not ask the user questions."
+     },
+     {
+      "type": "text",
+      "text": "# Plant database schema\n\nThe database is DuckDB.\n\n## How queries run\n\nThe `run_sql` tool runs one query and returns its rows.\n\n- Only SELECT queries run: a plain SELECT, a set operation of SELECTs (UNION, UNION ALL,\n  INTERSECT, EXCEPT), or `WITH ... SELECT`. Every CTE must itself be a SELECT. Anything else\n  is refused with a message: INSERT, UPDATE, DELETE, CREATE, COPY, ATTACH, SET, INSTALL,\n  PRAGMA, CALL, EXPLAIN, DESCRIBE, SHOW, VALUES on its own, and more than one statement.\n  A comment after the final semicolon is fine.\n- PIVOT and UNPIVOT work only inside a subquery: `SELECT * FROM (PIVOT ...)`.\n- The database is read-only and the engine cannot read or write any other file. Use the\n  tables below and table functions that generate data, such as `range`, only.\n- A result may have at most 5,000 rows, and a query may run for at most 10 seconds. Past\n  either limit the call fails with a message saying so. Aggregate in SQL rather than fetching\n  raw readings.\n- Functions and catalog views that show the engine's settings, files or internals are not\n  available: any function or view whose name starts with `duckdb_`, `pragma_` or `pg_`, and\n  `current_setting`, `which_secret`, `query`, `query_table` and\n  `json_execute_serialized_sql`. The `information_schema` views work.\n- The SQL dialect is DuckDB's. Engine errors are returned with the engine's message.\n\n## Tables and columns\n\n### dataset_info\n\n- `dataset_info.seed` INTEGER\n- `dataset_info.timezone` VARCHAR\n- `dataset_info.first_date` DATE\n- `dataset_info.end_date` DATE\n\n### meter\n\n- `meter.meter_id` VARCHAR\n- `meter.name` VARCHAR\n- `meter.level` VARCHAR\n- `meter.parent_id` VARCHAR\n- `meter.kind` VARCHAR\n\n### production_order\n\n- `production_order.order_id` INTEGER\n- `production_order.line_id` VARCHAR\n- `production_order.product` VARCHAR\n- `production_order.start_utc` TIMESTAMP\n- `production_order.end_utc` TIMESTAMP\n- `production_order.units` INTEGER\n\n### reading\n\n- `reading.meter_id` VARCHAR\n- `reading.ts_utc` TIMESTAMP\n- `reading.kwh` DOUBLE\n- `reading.local_start` VARCHAR\n- `reading.hour_start` VARCHAR\n- `reading.day_start` VARCHAR\n- `reading.month_start` VARCHAR\n- `reading.local_date` DATE\n- `reading.tariff_band` VARCHAR\n\n### tariff\n\n- `tariff.tariff_band` VARCHAR\n- `tariff.price_eur_per_kwh` DOUBLE\n\n## The meter tree\n\nEach line shows the meter id, its name and its level (or its kind).\n\n```\nsite (Plant, site)\n  dept_a (Stamping, department)\n    line_a1 (Stamping line 1, line)\n      mach_a1_1 (Press 1, machine)\n      mach_a1_2 (Press 2, machine)\n      mach_a1_3 (Shear 1, machine)\n    line_a2 (Stamping line 2, line)\n      mach_a2_1 (Press 3, machine)\n      mach_a2_2 (Shear 2, machine)\n      mach_a2_3 (Shear 3, machine)\n    line_a3 (Stamping line 3, line)\n      mach_a3_1 (Press 4, machine)\n      mach_a3_2 (Press 5, machine)\n  dept_b (Welding, department)\n    line_b1 (Welding line 1, line)\n      mach_b1_1 (Welder 1, machine)\n      mach_b1_2 (Welder 2, machine)\n      mach_b1_3 (Robot 1, machine)\n    line_b2 (Welding line 2, line)\n      mach_b2_1 (Welder 3, machine)\n      mach_b2_2 (Robot 2, machine)\n      mach_b2_3 (Robot 3, machine)\n    line_b3 (Welding line 3, line)\n      mach_b3_1 (Welder 4, machine)\n      mach_b3_2 (Robot 4, machine)\n  dept_c (Painting, department)\n    line_c1 (Painting line 1, line)\n      mach_c1_1 (Oven 1, machine)\n      mach_c1_2 (Sprayer 1, machine)\n      mach_c1_3 (Sprayer 2, machine)\n    line_c2 (Painting line 2, line)\n      mach_c2_1 (Oven 2, machine)\n      mach_c2_2 (Sprayer 3, machine)\n  dept_d (Assembly, department)\n    line_d1 (Assembly line 1, line)\n      mach_d1_1 (Conveyor 1, machine)\n      mach_d1_2 (Robot 5, machine)\n      mach_d1_3 (Tester 1, machine)\n    line_d2 (Assembly line 2, line)\n      mach_d2_1 (Conveyor 2, machine)\n      mach_d2_2 (Tester 2, machine)\nbattery (Battery, storage)\nsolar (Solar array, generation)\n```\n",
+      "cache_control": {
+       "type": "ephemeral"
+      }
+     }
+    ]
+   },
+   {
+    "role": "human",
+    "content": "Shear 2 kWh month by month, February to April 2026\n\nAnswer with one row per bucket_start, with these columns in this order: bucket_start, the start of the time bucket in plant local time as ISO 8601 text with the UTC offset, for example 2026-03-18T14:00:00+01:00; value, which is a number, or null where the question has no value for that row."
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQSzQcKEAgTGAI4AUIIdGhpbmtpbmcSDNj5WhJ++uKBnATN8xoMxZUGYRIr/W5d5ZOHIjCVYRg6h3AdlsTa8Mgtk31bVdUmE8xpehA58e8uLMYsRqeuA5WQwuwbNQYJ3dFQpJ4q6gaadspnrWBqiZxWkkXzUmbdebIwBxfwXOuxzJgE6E8L08OKl4Ioek0Il0DP/2gc+Ncw11tPRTvfD3h92pJ08j1p2pVsSlsdDUYBCKPX1WIhhhnZ9fumcaksxWh1A5D+gSIPdi4qMOOGM+Y9en43CBxXhEd+ORm0nP4RUJVE7BI7jQYr6RPlg6TNpLUFhANAiQL86zG8eqwYWCz2Gvdmz6InvOvE4g8AG3LQQ+9M06qPbBj1VRPO/xCLyuZOlq1a0YmWzdACuVNtJARQ6YDmNevxri/E6FmJDy6/6cLsiiRGDxJmZw57KBNlzDuGREkZM8n9xxFsnaTP2I9IvdPlLysH7I+v1UaB3QJ7WI+89dk283Ul500WVHDCtc9aG/u9Nlvc0OImEbreYbsXOqPe9qgOjz+RA5veolFYKf67678fEodII7sW25rci6wxCndL2mjVq4yLV6TfxiH6qGS9vW8+qbNnHjlBWUGSMe5h5fcFFcjYtlctU0C308Xv7sN1eFkW/9SCjJ/7XKggPMd8oA1IOlWdboLbjILEjOcjnKBdqNmjsRcz9zIHhNboqmK+WGieuvUCx8D7eZdtVZ8I9zppWL68Ae1DsMPw55M0LGRUGyl8Th9fadwUvhQE5GFR2RHtUYTj0Juefl8YXooyYfqlX9TfbeuQKzEk78yZQyiP+a9T9gB90aB7XKY4doKZfLQhoR8k2yadz0rMo9+r2eT3c3TfwxZA0yGUxPuU0ZNtIr1nbnZbhHKP4zWt4hxdSEVP71f+IFwRE9TElAsnGNO77ECbyEg+O52PDmML/zNSBA7Fn4jRmaWTyMH1JuuFhak8XfvqzAWtzg/uk02zBqC0y3z8Ozif5/tF1LOoWg2GjFBV0BIPOhiYyeC/QhFCxG8jtbvimzth/egYra7V9c8ViDLmtPIXqG+Ool6Z+sCEd00GMX8SxzAFEEiUJMpN8FU1egV73tq0QN9dRagA/WF+8OcFAw92UOuL+2o5Pb61mHNVQxPlJj2Q2Fn/simpBmh0XFUuR+hB8FV+QFEdyt93MmFMtlRNY5VT+RoIf8ofLTgCWb+rK08sCij6vKxCNioMRm7YHVChFoG4Jk0+W1RT8gfLByvmbFg8DorGT5CpJArwR4OA33kLlMgUSIAY4m3ZrTICTsm8Qu6lGAE=",
+      "thinking": "I'm treating Shear 2 as mach_a2_2 for the Feb\u2013Apr 2026 window. The month_start column is probably text, so I'll group by it and filter on the local_date range, keeping a null for any month with no rows.\n\n",
+      "type": "thinking"
+     },
+     {
+      "id": "toolu_01Ee1Dkrqn3GXJctxzPJ7Pig",
+      "caller": {
+       "type": "direct"
+      },
+      "input": {
+       "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value, COUNT(*) n, COUNT(kwh) nk FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+      },
+      "name": "run_sql",
+      "type": "tool_use",
+      "toolset_name": null
+     }
+    ],
+    "tool_calls": [
+     {
+      "name": "run_sql",
+      "args": {
+       "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value, COUNT(*) n, COUNT(kwh) nk FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+      },
+      "id": "toolu_01Ee1Dkrqn3GXJctxzPJ7Pig",
+      "type": "tool_call"
+     }
+    ],
+    "response_metadata": {
+     "id": "msg_011CgyJmT6Qg9uuv724dgy31",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "tool_use",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2325,
+      "inference_geo": "global",
+      "input_tokens": 191,
+      "output_tokens": 289,
+      "output_tokens_details": {
+       "thinking_tokens": 119
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   },
+   {
+    "role": "tool",
+    "content": "bucket_start,value,n,nk\n2026-02-01T00:00:00+01:00,17142.182000000023,2688,2688\n2026-03-01T00:00:00+01:00,19114.749999999978,2972,2972\n2026-04-01T00:00:00+02:00,18845.847000000005,2880,2880\n3 rows in total",
+    "tool_call_id": "toolu_01Ee1Dkrqn3GXJctxzPJ7Pig",
+    "status": "success"
+   },
+   {
+    "role": "ai",
+    "content": [
+     {
+      "signature": "CAQSyQYKEAgTGAI4AUIIdGhpbmtpbmcSDL+kN3r2lFhpza6hVhoMieEkHzzMfi7yBR37IjB44SF/dxm1JhErY8L1hflhf8K0GST1jEBCWOj7ACdNttgV78Mxn5Mw8UHQq1dx3mcq5gUFxbHscZukTNGl+UVXn4dmGV55zHz0WnyNczWSMdKB8GS1mJYajvJ6NdpUjxvLr1x634ChObcCmCrzTkGngcCu8bVzPL+iHH0FBl01a2ZtK5kyynFEgT0y5bqbddRh2ede/DPPPh68BsUq8nqomUB855NVw4Q9/gpNoC4Mnzrqk0CIxv/rh53j0BikOL5V0ZDcHtABmRB/WZh2EG573I62QJg437PhVrNJqFE1QC2Cz0C0HioUwAkHvoKyF+sqPfs6fIknhkJaUn+vG+LpcG7PP2J26duuFfWl2M4OXGjZJxObcJjyqJHVINw0yWJjRZCRobZjuT4p2NsmF/CEA/lwzjNUm8bgYE3KXTlAnXabWD5ViaDqDHUI9Xki1WiIsOLfPWwZHoswKekn1vqzgWbp7bdPf2CvHW2hqqJ7VNEHe6erF3tsGk6pgW0XT+LEdmF34S//9Y/Ng9zvNLWHl4FvE3fSbTdhvtSrmmQF7qlLs6/kDEZF4ZjIByKMWfEr+VwgHWPzJZSiFwFR8JKBcyw+NLOXTu2gT+5d9YpYDGYt3+El6+1kH2wtDDPz5c2I4TB/ieyhBldfRd2dc7acZM48f21k0jbMCmtvnPHIKgIzD8GEdNqqzhH+LwSc/WJcdDPZ6DSS9GeD+XJ8S4rnOhkm6p3KtBL7Q8Ed0WpDIMRq6RKkqYv/1mzDVENYqT4JPl2KmVc/yU1m8ILFglVPKoZwvv3XPd8b/aobv0fjkLIxDC+m4rFDkZn+pDg37QgDzP6AhKUkpd23dA9ljh+kKRUpgv4bA2oHCkoJydsYPomDlNe1xhaZpbS57ldVoiBrMrTcFwoo9ouDHAbU7q3/WaP6/GJD1zE0YB1EcKVMYLxFICjuGEE4QiHug7A7dd/DYnlGQtpawfyFlkKayav+gbNkVtN4P50MylBDl2zdta2K5CXcfx42CYHs5Vibu094BlLQDO9vBKdEzeLfvC+X7rmCuxOv8DIgGAE=",
+      "thinking": "I've got the counts worked out: February is 28 \u00d7 96 = 2688, March comes to 2972 once the DST adjustment is applied, and April is 2880. That completes the tally, so I just need to return the final rows without the extra columns, which will take one more call.\n\n",
+      "type": "thinking"
+     },
+     {
+      "id": "toolu_01UKL3Ue7USkufQNppwFyv79",
+      "caller": {
+       "type": "direct"
+      },
+      "input": {
+       "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+      },
+      "name": "run_sql",
+      "type": "tool_use",
+      "toolset_name": null
+     }
+    ],
+    "tool_calls": [
+     {
+      "name": "run_sql",
+      "args": {
+       "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+      },
+      "id": "toolu_01UKL3Ue7USkufQNppwFyv79",
+      "type": "tool_call"
+     }
+    ],
+    "response_metadata": {
+     "id": "msg_011CgyJmgFR5KXs1syqVRick",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "tool_use",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2325,
+      "inference_geo": "global",
+      "input_tokens": 597,
+      "output_tokens": 211,
+      "output_tokens_details": {
+       "thinking_tokens": 62
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   },
+   {
+    "role": "tool",
+    "content": "bucket_start,value\n2026-02-01T00:00:00+01:00,17142.182000000023\n2026-03-01T00:00:00+01:00,19114.749999999978\n2026-04-01T00:00:00+02:00,18845.847000000005\n3 rows in total",
+    "tool_call_id": "toolu_01UKL3Ue7USkufQNppwFyv79",
+    "status": "success"
+   },
+   {
+    "role": "ai",
+    "content": "Shear 2 (meter `mach_a2_2`) used between about 17,100 and 19,100 kWh a month from February to April 2026:\n\n| bucket_start | value (kWh) |\n|---|---|\n| 2026-02-01T00:00:00+01:00 | 17142.182 |\n| 2026-03-01T00:00:00+01:00 | 19114.750 |\n| 2026-04-01T00:00:00+02:00 | 18845.847 |\n\nAll three months have a full set of 15-minute readings with no gaps. March has 4 fewer intervals than its 31 days would suggest because the clocks went forward to summer time that month. April starts at +02:00 because it falls in summer time.",
+    "tool_calls": [],
+    "response_metadata": {
+     "id": "msg_011CgyJmrYoHWoTCcHuAyNFp",
+     "container": null,
+     "diagnostics": null,
+     "model": "claude-opus-5-5",
+     "stop_details": null,
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 0,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2325,
+      "inference_geo": "global",
+      "input_tokens": 902,
+      "output_tokens": 229,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": null,
+      "service_tier": "standard",
+      "speed": "standard"
+     },
+     "model_name": "claude-opus-5-5",
+     "model_provider": "anthropic"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "name": "run_sql",
+    "args": {
+     "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value, COUNT(*) n, COUNT(kwh) nk FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+    },
+    "ok": true,
+    "content": "bucket_start,value,n,nk\n2026-02-01T00:00:00+01:00,17142.182000000023,2688,2688\n2026-03-01T00:00:00+01:00,19114.749999999978,2972,2972\n2026-04-01T00:00:00+02:00,18845.847000000005,2880,2880\n3 rows in total",
+    "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value, COUNT(*) n, COUNT(kwh) nk FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+   },
+   {
+    "name": "run_sql",
+    "args": {
+     "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+    },
+    "ok": true,
+    "content": "bucket_start,value\n2026-02-01T00:00:00+01:00,17142.182000000023\n2026-03-01T00:00:00+01:00,19114.749999999978\n2026-04-01T00:00:00+02:00,18845.847000000005\n3 rows in total",
+    "sql": "SELECT month_start AS bucket_start, SUM(kwh) AS value FROM reading WHERE meter_id='mach_a2_2' AND local_date >= DATE '2026-02-01' AND local_date < DATE '2026-05-01' GROUP BY 1 ORDER BY 1"
+   }
+  ],
+  "final": "rows",
+  "columns": [
+   "bucket_start",
+   "value"
+  ],
+  "rows": [
+   [
+    "2026-02-01T00:00:00+01:00",
+    17142.182000000023
+   ],
+   [
+    "2026-03-01T00:00:00+01:00",
+    19114.749999999978
+   ],
+   [
+    "2026-04-01T00:00:00+02:00",
+    18845.847000000005
+   ]
+  ],
+  "successful_results": [
+   [
+    [
+     "bucket_start",
+     "value",
+     "n",
+     "nk"
+    ],
+    [
+     [
+      "2026-02-01T00:00:00+01:00",
+      17142.182000000023,
+      2688,
+      2688
+     ],
+     [
+      "2026-03-01T00:00:00+01:00",
+      19114.749999999978,
+      2972,
+      2972
+     ],
+     [
+      "2026-04-01T00:00:00+02:00",
+      18845.847000000005,
+      2880,
+      2880
+     ]
+    ]
+   ],
+   [
+    [
+     "bucket_start",
+     "value"
+    ],
+    [
+     [
+      "2026-02-01T00:00:00+01:00",
+      17142.182000000023
+     ],
+     [
+      "2026-03-01T00:00:00+01:00",
+      19114.749999999978
+     ],
+     [
+      "2026-04-01T00:00:00+02:00",
+      18845.847000000005
+     ]
+    ]
+   ]
+  ],
+  "refusal_reason": null,
+  "cause": null,
+  "usage": {
+   "input_tokens": 1690,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 6975,
+   "output_tokens": 729
+  },
+  "served_model": "claude-opus-5-5"
+ },
+ "score": {
+  "outcome": "correct",
+  "category": null,
+  "correct": true,
+  "earlier_correct": false
+ },
+ "cost_eur": 0.022735,
+ "retries": 0
+}

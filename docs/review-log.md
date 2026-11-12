@@ -86,6 +86,35 @@
   - Total spend on the model API so far: 7.05 EUR of 20 (pilots 0.23, full run 6.82), priced
     from the token counts in the responses, not checked against the invoice.
 
+- Third arm, text-to-SQL with the schema and no rules (`sql_schema_only`), run id
+  `20261112T153515Z`, kept in `results/schema_only/`. The owner asked for it after the first run,
+  whose result was known: the text-to-SQL arm had no wrong value, and `docs/schema.md` gives it
+  rules R1 to R10. The first run was not rerun, rescored or edited; its file has the same hash
+  before and after.
+  - The arm's context is generated: how the tool runs, every table and column with its type,
+    the meter tree. It has no rules, no column meanings, no metric definitions, no dataset range
+    and no guidance on questions with no answer. Everything else is the `sql` arm's.
+  - Preregistered before its first call: same 55 questions, 5 repeats, minimum 3, cap 8 EUR; a
+    difference is claimed per group only when the 95% interval excludes 0 and the difference is
+    at least 5 points. A reviewer checked the change before the run and found that a shorter
+    later run would have cut the first run's numbers in the report; that was fixed before the
+    results were read.
+  - Pilot of three questions (H5, M1, U1): 0.08 EUR. Full arm: 275 runs, 5 of 5 repeats,
+    6.78 EUR, one attempt on H1 timed out at 300 s and was retried (0.01 EUR unscored).
+  - Outcomes: 263 of 275 as the key expects. 12 runs returned a wrong value without warning:
+    4 double counts (H19 once, H20 three times of five), 3 on energy per unit (M2 twice, M3
+    once), 5 values returned for a question with no answer (U5 four times, U2 once).
+  - By the preregistered rule no group difference between `sql` and `sql_schema_only` is
+    claimed: hierarchy differs by 4 points (interval 0 to 10), metric definition by 10 (0 to
+    23). Both intervals reach 0. The counts are reported as counts.
+  - The controller read one transcript per wrong question. H19 and H20 add a department to its
+    own lines or machines. M2 and M3 count an order's units on the day the order starts or
+    ends instead of spreading them over its intervals; that convention is rule R5, which this
+    arm was never given. U5 returns the solar meter's kWh as consumption; U2 returns NULL for a
+    month outside the data. This reading is the controller's and is not a second score.
+  - Total spend on the model API: 13.93 EUR of 20, priced from the token counts in the
+    responses, not checked against the invoice.
+
 ## Owner rewording
 
 none yet
