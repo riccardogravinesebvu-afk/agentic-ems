@@ -178,3 +178,16 @@ def test_runs_that_differ_are_not_reported_together(change):
     extra["versions"][change] = "other"
     with pytest.raises(SystemExit, match=change):
         merge(FIXTURE, extra, "schema_only")
+
+
+def test_a_later_run_that_stopped_early_does_not_cut_the_first_run():
+    from agentic_ems.benchmark.report import merge
+
+    extra = third_arm()
+    extra["runs"] = [run for run in extra["runs"] if run["repeat"] == 1]
+    extra["stopped"] = "the budget"
+    block = build_block(merge(FIXTURE, extra, "schema_only"))
+    assert "semantic 2, sql 2, sql_schema_only 1; of 2 repeats completed" in block
+    assert "semantic 0 of 8 runs, sql 3 of 8 runs, sql_schema_only" in block and "of 4 runs" in block
+    assert "stopped early, at in results/schema_only, the budget" in block
+    assert "0.00 EUR in runs of an incomplete repeat" in block and BELOW_MINIMUM in block

@@ -54,15 +54,20 @@ def build_block(results: dict) -> str:
     arms = list(results["versions"]["prompts_sha256"])
     questions = results["questions"]
     groups = list(dict.fromkeys(q["group"] for q in questions.values()))
-    # Accuracy is over completed repeats only: a repeat cut short by an abort is left out.
-    completed = 0
-    while sum(r["repeat"] == completed + 1 for r in results["runs"]) == len(questions) * len(arms) > 0:
-        completed += 1
-    runs = [r for r in results["runs"] if r["repeat"] <= completed]
+    # Accuracy is over completed repeats only: a repeat cut short by an abort is left out, for every arm of that
+    # run. Each recorded run counts its own, so a later run that stopped early does not cut down an earlier one.
+    done = dict.fromkeys(arms, 0)
+    for together in results.get("arms_by_run", [arms]):
+        n = 0
+        while sum(r["arm"] in together and r["repeat"] == n + 1 for r in results["runs"]) == len(questions) * len(together) > 0:
+            n += 1
+        done.update(dict.fromkeys(together, n))
+    runs = [r for r in results["runs"] if r["repeat"] <= done[r["arm"]]]
+    completed = min(done.values())  # the repeats every arm completed: the only ones arms are compared on
     enough = completed >= results["min_repeats"]
 
-    def of(arm: str, group: str | None = None) -> list[dict]:
-        return [r for r in runs if r["arm"] == arm and group in (None, r["group"])]
+    def of(arm: str, group: str | None = None, repeats: int | None = None) -> list[dict]:
+        return [r for r in runs if r["arm"] == arm and group in (None, r["group"]) and r["repeat"] <= (repeats or done[arm])]
 
     wrong = ", ".join(
         f"{arm} {sum(r['outcome'] in ('known_wrong', 'other_wrong') for r in of(arm))} of {len(of(arm))} runs"
@@ -73,12 +78,14 @@ def build_block(results: dict) -> str:
     if results["failure"]:
         lines += ["", f"The run failed: {results['failure']}."]
     versions = results["versions"]
-    lines += ["", (f"{completed} of {results['repeats']} repeats completed, {len(questions)} questions, model "
+    repeats = (str(completed) if len(set(done.values())) == 1
+               else ", ".join(f"{arm} {n}" for arm, n in done.items()) + ";")
+    lines += ["", (f"{repeats} of {results['repeats']} repeats completed, {len(questions)} questions, model "
                    f"{versions['model']}, effort {versions['effort']}.")]
     if results["stopped"]:
         lines += ["", f"The benchmark stopped early, at {results['stopped']}."]
     counted = sum(r["cost_eur"] for r in runs)
-    incomplete = sum(r["cost_eur"] for r in results["runs"] if r["repeat"] > completed)
+    incomplete = sum(r["cost_eur"] for r in results["runs"] if r["repeat"] > done[r["arm"]])
     lines += ["", (f"Spend: {counted:.2f} EUR in the runs the table counts, {incomplete:.2f} EUR in runs of an "
                    f"incomplete repeat and {results['unscored_eur']:.2f} EUR in attempts that were not scored, of a "
                    f"budget of {results['budget_eur']:.2f} EUR.")]
@@ -96,7 +103,7 @@ def build_block(results: dict) -> str:
             rs = of(arm, group)
             n, correct = len(rs), sum(r["correct"] for r in rs)
             accuracy = f"{correct} of {n}"
-            if enough and group != "unanswerable":
+            if done[arm] >= results["min_repeats"] and group != "unanswerable":
                 lo, hi = wilson(correct, n)
                 accuracy += f", {_pct(correct / n)} ({_pct(lo)} to {_pct(hi)})"
             known = ", ".join(
@@ -111,7 +118,7 @@ def build_block(results: dict) -> str:
             )
 
     def accuracy_of(qid: str, arm: str) -> float:
-        rs = [r for r in of(arm) if r["question"] == qid]
+        rs = [r for r in of(arm, repeats=completed) if r["question"] == qid]
         return sum(r["correct"] for r in rs) / len(rs)
 
     for a, b in itertools.combinations(arms, 2) if enough else ():
@@ -164,11 +171,13 @@ def merge(base: dict, extra: dict, subdir: str) -> dict:
     merged = dict(base)
     merged["versions"] = {**base["versions"], "prompts_sha256": {**base["versions"]["prompts_sha256"],
                                                                  **extra["versions"]["prompts_sha256"]}}
+    merged["arms_by_run"] = [*base.get("arms_by_run", [list(base["versions"]["prompts_sha256"])]),
+                             list(extra["versions"]["prompts_sha256"])]
     merged["runs"] = base["runs"] + [{**run, "transcript": f"{subdir}/{run['transcript']}"} for run in extra["runs"]]
     for key in ("budget_eur", "unscored_eur", "attempts_still_running"):
         merged[key] = base[key] + extra[key]
-    for key in ("failure", "stopped"):
-        merged[key] = "; ".join(filter(None, (base[key], extra[key]))) or None
+    for key in ("failure", "stopped"):  # say which run, so a note on the later one is not read as covering both
+        merged[key] = "; ".join(filter(None, (base[key], extra[key] and f"in results/{subdir}, {extra[key]}"))) or None
     return merged
 
 

@@ -373,7 +373,7 @@ def test_versions_are_recorded(bench, seed, tmp_path):
 
 def test_run_fails_when_neither_arm_reads_from_cache(bench, tmp_path):
     results = bench(ScriptedChatModel(script=[refuse(USAGE), refuse(USAGE)]), [question("Q1")])
-    assert results["failure"] == "neither arm ever read from cache"
+    assert results["failure"] == "no arm ever read from cache"
     assert saved(tmp_path)["failure"] == results["failure"]
     assert len(results["runs"]) == 2  # the evidence is kept
 

@@ -304,7 +304,7 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
             pass  # a second Ctrl-C ends the wait only: the save below still runs and the first error stays
         results["attempts_still_running"] = sum(m.thread is not None and m.thread.is_alive() for m in unscored)
         if failure is None and results["runs"] and not any(run["cache_read_input_tokens"] for run in results["runs"]):
-            failure = "neither arm ever read from cache"
+            failure = "no arm ever read from cache"
         results["failure"] = failure
         save()
     return json.loads(json.dumps(results, default=_plain))  # the same plain values as the file
