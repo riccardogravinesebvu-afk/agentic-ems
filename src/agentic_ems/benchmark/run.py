@@ -1,0 +1,254 @@
+"""Run the benchmark: every question in every arm, repeat by repeat, while the budget allows.
+
+Run with: uv run python -m agentic_ems.benchmark.run --help
+Writes results/results.json, results/errors.jsonl and one transcript per run under results/runs/<run_id>/.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import random
+import sys
+import threading
+import time
+from collections.abc import Callable
+from dataclasses import asdict
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from pathlib import Path
+
+from agentic_ems import generator
+from agentic_ems.agent import (
+    MODEL,
+    Arm,
+    ModelMismatch,
+    RunRecord,
+    make_model,
+    run_agent,
+    semantic_arm,
+    tracing_callbacks,
+)
+from agentic_ems.benchmark import scorer
+from agentic_ems.benchmark.sql_arm import sql_arm
+from agentic_ems.benchmark.verify import (
+    QUESTIONS_FILE,
+    Question,
+    Truth,
+    load_questions,
+    load_truth,
+)
+from agentic_ems.semantic import DEFAULT_DB, load_catalog, open_db
+
+ROOT = Path(__file__).resolve().parents[3]
+RESULTS = ROOT / "results"
+# claude-opus-5-5 in USD per million tokens, from the claude-api skill (models table cached 2026-11-03).
+# A cache write is 1.25 times the input price: the arms use the default 5-minute cache.
+PRICES = {"input_tokens": 4.00, "cache_creation_input_tokens": 5.00, "cache_read_input_tokens": 0.20, "output_tokens": 20.00}
+MAX_ATTEMPTS = 5  # per run; a fault that outlasts this many backoffs stops the benchmark
+MAX_MISMATCHES = 3
+BACKOFF_BASE_S, BACKOFF_CAP_S = 2.0, 60.0
+
+
+class RunTimeout(RuntimeError):
+    """A run went past its wall-clock limit."""
+
+
+class Abort(RuntimeError):
+    """The benchmark cannot go on; the message says why."""
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _prompt(arm: Arm) -> dict:
+    return {"system": arm.system, "tools": arm.tools}
+
+
+def _plain(value):
+    """The JSON form of values DuckDB rows hold."""
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    return str(value)
+
+
+def _dump(path: Path, data) -> None:
+    path.write_text(json.dumps(data, indent=1, default=_plain) + "\n")
+
+
+def _within(limit_s: float, fn: Callable[[], RunRecord]) -> RunRecord:
+    # A daemon thread, because a run past its limit cannot be stopped: it is abandoned and never blocks exit.
+    out: dict = {}
+
+    def target() -> None:
+        try:
+            out["record"] = fn()
+        except Exception as exc:  # noqa: BLE001 - re-raised in the calling thread below
+            out["error"] = exc
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(limit_s)
+    if thread.is_alive():
+        raise RunTimeout(f"the run took longer than {limit_s:g} s")
+    if "error" in out:
+        raise out["error"]
+    return out["record"]
+
+
+def cost_eur(usage: dict[str, int], eur_per_usd: float) -> float:
+    return sum(usage[key] * price for key, price in PRICES.items()) / 1_000_000 * eur_per_usd
+
+
+def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], arms: list[Arm], *, repeats: int,
+                  budget_eur: float, eur_per_usd: float, min_repeats: int, first_repeat_eur: float, effort: str,
+                  run_timeout_s: float, out_dir: Path, callbacks: list | None = None,
+                  sleep: Callable[[float], None] = time.sleep) -> dict:
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    run_dir = out_dir / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    for arm in arms:
+        _dump(run_dir / f"{arm.name}-prompt.json", _prompt(arm))
+    results: dict = {
+        "run_id": run_id,
+        "versions": {
+            "seed": generator.SEED,
+            "questions_sha256": _sha256(QUESTIONS_FILE.read_bytes()),
+            "scorer_sha256": _sha256(Path(scorer.__file__).read_bytes()),
+            "prompts_sha256": {arm.name: _sha256(json.dumps(_prompt(arm), sort_keys=True).encode()) for arm in arms},
+            "model": MODEL,
+            "effort": effort,
+        },
+        "eur_per_usd": eur_per_usd,
+        "prices": {"usd_per_million_tokens": PRICES},
+        "budget_eur": budget_eur,
+        "repeats": repeats,
+        "min_repeats": min_repeats,
+        "first_repeat_eur": first_repeat_eur,
+        "questions": {
+            q.id: {
+                "group": q.group,
+                "text": q.text,
+                "reference": None if (ref := truths[q.id].reference) is None else {"columns": ref[0], "rows": ref[1]},
+                "correct_runs": dict.fromkeys((arm.name for arm in arms), 0),
+            }
+            for q in questions
+        },
+        "runs": [],
+        "failure": None,
+    }
+    errors = (out_dir / "errors.jsonl").open("w")
+    mismatches = 0
+
+    def attempt(q: Question, arm: Arm, repeat: int) -> tuple[RunRecord, int]:
+        """The run's record and its retry count. Harness failures are logged and retried, never scored."""
+        nonlocal mismatches
+        for retries in range(MAX_ATTEMPTS):
+            started = time.monotonic()
+            try:
+                record = _within(run_timeout_s, lambda: run_agent(model, arm, q.text, callbacks=callbacks))
+            except Exception as exc:
+                mismatches = mismatches + 1 if isinstance(exc, ModelMismatch) else 0
+                errors.write(json.dumps({
+                    "question": q.id, "arm": arm.name, "repeat": repeat, "attempt": retries + 1,
+                    "cause": type(exc).__name__, "message": str(exc),
+                    "elapsed_s": round(time.monotonic() - started, 3),
+                }) + "\n")
+                errors.flush()
+                if mismatches == MAX_MISMATCHES:
+                    raise Abort(f"{MAX_MISMATCHES} model mismatches in a row, the last: {exc}") from exc
+                if retries + 1 < MAX_ATTEMPTS:
+                    sleep(random.uniform(0, min(BACKOFF_CAP_S, BACKOFF_BASE_S * 2**retries)))  # full jitter
+                continue
+            mismatches = 0
+            return record, retries
+        raise Abort(f"{q.id} in the {arm.name} arm, repeat {repeat}, failed {MAX_ATTEMPTS} attempts")
+
+    failure: str | None = "the harness stopped before the end"
+    spent = 0.0
+    try:
+        for repeat in range(1, repeats + 1):
+            estimate = first_repeat_eur if repeat == 1 else spent / (repeat - 1)
+            if spent + estimate > budget_eur:
+                break
+            for q in questions:
+                for arm in arms:
+                    record, retries = attempt(q, arm, repeat)
+                    result = scorer.score(q, truths[q.id], record)
+                    cost = cost_eur(record.usage, eur_per_usd)
+                    spent += cost
+                    name = f"{q.id}-{arm.name}-{repeat}.json"
+                    _dump(run_dir / name, {
+                        "question": asdict(q), "truth": asdict(truths[q.id]), "record": asdict(record),
+                        "score": asdict(result), "cost_eur": cost, "retries": retries,
+                    })
+                    rows = record.final == "rows"
+                    results["runs"].append({
+                        "question": q.id, "group": q.group, "arm": arm.name, "repeat": repeat,
+                        "outcome": result.outcome, "category": result.category, "correct": result.correct,
+                        "earlier_correct": result.earlier_correct, **record.usage, "cost_eur": cost,
+                        "retries": retries,
+                        "sql": next((c["sql"] for c in reversed(record.calls) if c["ok"] and c["sql"]), None)
+                        if rows else None,
+                        "answer": {"columns": record.columns, "rows": record.rows} if rows else None,
+                        "transcript": f"runs/{run_id}/{name}",
+                    })
+                    results["questions"][q.id]["correct_runs"][arm.name] += result.correct
+        failure = None
+    except Abort as exc:
+        failure = str(exc)
+    finally:
+        errors.close()
+        if failure is None and not any(run["cache_read_input_tokens"] for run in results["runs"]):
+            failure = "neither arm ever read from cache"
+        results["failure"] = failure
+        _dump(out_dir / "results.json", results)
+    return json.loads(json.dumps(results, default=_plain))  # the same plain values as the file
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Before any LangChain call: no transcript leaves the machine through LangSmith.
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"  # the legacy name of the same switch
+    parser = argparse.ArgumentParser(description="Run the benchmark and write results/.")
+    parser.add_argument("--repeats", type=int, required=True)
+    parser.add_argument("--min-repeats", type=int, required=True, help="below this many completed repeats no comparison is claimed")
+    parser.add_argument("--budget-eur", type=float, required=True)
+    parser.add_argument("--first-repeat-eur", type=float, required=True, help="the estimated cost of the first repeat")
+    parser.add_argument("--eur-per-usd", type=float, required=True)
+    parser.add_argument("--effort", required=True, choices=["low", "medium", "high", "xhigh", "max"])
+    parser.add_argument("--max-tokens", type=int, required=True)
+    parser.add_argument("--run-timeout-s", type=float, required=True, help="the wall-clock limit of one run")
+    parser.add_argument("--arm", choices=["semantic", "sql"])
+    parser.add_argument("--only", nargs="+", metavar="ID")
+    args = parser.parse_args(argv)
+
+    questions = load_questions()
+    if args.only:
+        unknown = set(args.only) - {q.id for q in questions}
+        if unknown:
+            parser.error(f"no such question: {', '.join(sorted(unknown))}")
+        questions = [q for q in questions if q.id in args.only]
+    con = open_db(DEFAULT_DB)
+    cursor = con.cursor()
+    catalog = load_catalog(cursor)
+    arms = [semantic_arm(con, catalog), sql_arm(con, catalog, (ROOT / "docs" / "schema.md").read_text())]
+    arms = [arm for arm in arms if args.arm in (None, arm.name)]
+    results = run_benchmark(
+        make_model(effort=args.effort, max_tokens=args.max_tokens), questions, load_truth(cursor), arms,
+        repeats=args.repeats, budget_eur=args.budget_eur, eur_per_usd=args.eur_per_usd,
+        min_repeats=args.min_repeats, first_repeat_eur=args.first_repeat_eur, effort=args.effort,
+        run_timeout_s=args.run_timeout_s, out_dir=RESULTS, callbacks=tracing_callbacks(),
+    )
+    print(f"{len(results['runs'])} runs written to {RESULTS}")
+    if results["failure"]:
+        print(f"The benchmark failed: {results['failure']}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
