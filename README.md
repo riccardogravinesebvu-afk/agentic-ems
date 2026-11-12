@@ -2,6 +2,16 @@
 
 Written from scratch on synthetic data. No code, schema or data from any employer or customer.
 
+## What I found
+
+With the rules in its prompt, the model that writes SQL made no mistake. Without them it returned 12 wrong values in 275 runs, 4 of them double counts. The semantic layer cannot double count, but it covers only its four metrics, and outside them it returned ingredients, not answers.
+
+![The demo page replaying a recorded answer: the model's request, the SQL the compiler wrote, the rows as a chart](docs/images/demo.png)
+
+The page above replays four recorded answers of the `semantic` arm. It runs from a clone, see [Run it](#run-it).
+
+## What this is
+
 Questions in plain language about one invented manufacturing plant's energy data, answered three ways by the same model, and scored against reference values. The plant has a meter tree: a site meter, four departments, ten lines, twenty-six machines. A parent meter already contains its children, so adding a department to one of its own lines counts the same kWh twice. That mistake is what this repository measures.
 
 - **`semantic`**: the model never writes SQL. It fills a request (metric, meters, period, grain) and [`semantic.py`](src/agentic_ems/semantic.py) validates it and compiles the SQL. A request that sums a meter with its ancestor is refused before it runs.
