@@ -45,6 +45,22 @@
   H13), and a department plus one of its own lines is the department's reading (H19). The
   owner read the values and the reading of each question; the owner did not recompute them.
 
+- Baseline pilot (paid). The owner approved a pilot of the text-to-SQL arm with a cap of 2 EUR.
+  Eight hierarchy questions (H1, H2, H5, H8, H10, H13, H16, H19), one repeat, `claude-opus-5-5`,
+  effort medium, 16,000 output tokens per response, 1.00 EUR per USD. It ran as two invocations
+  (six questions, then two) because the spend ledger reserves each attempt at its worst-case price.
+  - Outcomes: 8 correct, 0 known wrong, 0 other wrong, 0 refusals, 0 no answer. No run double
+    counted, summed children or added separate peaks.
+  - Each run made one `run_sql` call. The `sqlglot` check refused no query, so none that DuckDB
+    would accept was refused.
+  - Spend: 0.12 EUR in total, 0.015 EUR per run on average. No retry, no unscored attempt.
+  - Caching: the first response wrote 6,850 tokens to the cache (`cache_creation_input_tokens`);
+    every later response read them.
+  - Not done before the pilot: the plan asked the owner to read `docs/schema.md` first. The owner
+    approved the pilot without confirming that reading; it is still open before the full run.
+  - Eight questions and one repeat say nothing about the rate of wrong answers; the full run
+    reads all 55 questions.
+
 ## Owner rewording
 
 none yet
