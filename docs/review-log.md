@@ -127,6 +127,24 @@
   README says so. The same check found that the report fix was committed 73 seconds after the
   third arm's run started, so it was in place before the results were read, not before the run.
 
+- Code review of the whole branch after the README, by a separate agent. Ten findings; five
+  were fixed the same day.
+  - The accuracy intervals used every run as an independent observation, although the five
+    repeats of a question mostly agree. They now use the number of questions as the sample
+    size and are wider (hierarchy for the `sql` arm: 96% to 100% became 85% to 100%). This
+    differs from the preregistration, which named the Wilson interval without saying over
+    what; the change goes in the cautious direction and no count or difference changed.
+  - Percentages are now withheld for every arm when any arm is below the minimum repeats; a
+    run of a single question is no longer marked failed for not reading the cache; the
+    generator writes to the path every reader opens; the test workflow also runs the page's
+    tests and build.
+  - Left as they are and known: the demo's streaming path does not sum usage or check the
+    served model (the recording command prices spend through its own callback); the SQL guard
+    refuses a parenthesised join that DuckDB accepts, which happened in none of the 825
+    recorded runs (one tool call failed in all of them, on an engine error); transcripts
+    repeat the system prompt; usage is summed in three places; the saved sample answers for
+    the page are not recorded.
+
 ## Owner rewording
 
 none yet

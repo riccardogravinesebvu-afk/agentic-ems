@@ -26,11 +26,11 @@ Spend: 0.22 EUR in the runs the table counts, 0.00 EUR in runs of an incomplete 
 
 | Arm | Group | Correct | Refusals | Known wrong | Other wrong | No answer | Cost EUR | EUR per correct | Earlier call correct |
 |---|---|---|---|---|---|---|---|---|---|
-| semantic | hierarchy | 3 of 4, 75% (30% to 95%) | 1 | 0 | 0 | 0 | 0.03 | 0.011 | 0 |
-| semantic | control | 2 of 2, 100% (34% to 100%) | 0 | 0 | 0 | 0 | 0.02 | 0.008 | 0 |
+| semantic | hierarchy | 3 of 4, 75% (20% to 97%) | 1 | 0 | 0 | 0 | 0.03 | 0.011 | 0 |
+| semantic | control | 2 of 2, 100% (21% to 100%) | 0 | 0 | 0 | 0 | 0.02 | 0.008 | 0 |
 | semantic | unanswerable | 2 of 2 | 2 | 0 | 0 | 0 | 0.02 | 0.008 | 0 |
-| sql | hierarchy | 2 of 4, 50% (15% to 85%) | 0 | children_sum 1, double_count 1 | 0 | 0 | 0.08 | 0.040 | 1 |
-| sql | control | 1 of 2, 50% (9% to 91%) | 0 | 0 | 0 | 1 | 0.04 | 0.040 | 0 |
+| sql | hierarchy | 2 of 4, 50% (9% to 91%) | 0 | children_sum 1, double_count 1 | 0 | 0 | 0.08 | 0.040 | 1 |
+| sql | control | 1 of 2, 50% (5% to 95%) | 0 | 0 | 0 | 1 | 0.04 | 0.040 | 0 |
 | sql | unanswerable | 1 of 2 | 1 | 0 | 1 | 0 | 0.04 | 0.040 | 0 |
 
 **Difference between arms**, semantic minus sql, in accuracy points, paired by question:
@@ -66,7 +66,7 @@ value
 
 [The transcript of this run](results/runs/20261112T090000Z/H1-sql-1.json)
 
-Intervals: Wilson score 95% for accuracy, a 95% bootstrap over questions (10,000 resamples, fixed seed) for differences.
+Intervals: Wilson score 95% for accuracy with the number of questions as the sample size, because repeats of one question are not independent; a 95% bootstrap over questions (10,000 resamples, fixed seed) for differences.
 
 Known wrong values are examples, not a complete list, so their counts are lower bounds."""
 

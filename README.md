@@ -19,20 +19,20 @@ Spend: 13.60 EUR in the runs the table counts, 0.00 EUR in runs of an incomplete
 
 | Arm | Group | Correct | Refusals | Known wrong | Other wrong | No answer | Cost EUR | EUR per correct | Earlier call correct |
 |---|---|---|---|---|---|---|---|---|---|
-| semantic | hierarchy | 104 of 105, 99% (95% to 100%) | 1 | 0 | 0 | 0 | 1.29 | 0.012 | 0 |
-| semantic | control | 35 of 35, 100% (90% to 100%) | 0 | 0 | 0 | 0 | 0.39 | 0.011 | 0 |
-| semantic | metric_definition | 30 of 30, 100% (89% to 100%) | 0 | 0 | 0 | 0 | 0.53 | 0.018 | 0 |
-| semantic | out_of_scope | 0 of 65, 0% (0% to 6%) | 35 | 0 | 30 | 0 | 0.84 | none correct | 0 |
+| semantic | hierarchy | 104 of 105, 99% (83% to 100%) | 1 | 0 | 0 | 0 | 1.29 | 0.012 | 0 |
+| semantic | control | 35 of 35, 100% (65% to 100%) | 0 | 0 | 0 | 0 | 0.39 | 0.011 | 0 |
+| semantic | metric_definition | 30 of 30, 100% (61% to 100%) | 0 | 0 | 0 | 0 | 0.53 | 0.018 | 0 |
+| semantic | out_of_scope | 0 of 65, 0% (0% to 23%) | 35 | 0 | 30 | 0 | 0.84 | none correct | 0 |
 | semantic | unanswerable | 40 of 40 | 40 | 0 | 0 | 0 | 0.20 | 0.005 | 0 |
-| sql | hierarchy | 105 of 105, 100% (96% to 100%) | 0 | 0 | 0 | 0 | 1.44 | 0.014 | 0 |
-| sql | control | 35 of 35, 100% (90% to 100%) | 0 | 0 | 0 | 0 | 0.47 | 0.014 | 0 |
-| sql | metric_definition | 30 of 30, 100% (89% to 100%) | 0 | 0 | 0 | 0 | 0.56 | 0.019 | 0 |
-| sql | out_of_scope | 65 of 65, 100% (94% to 100%) | 0 | 0 | 0 | 0 | 0.87 | 0.013 | 0 |
+| sql | hierarchy | 105 of 105, 100% (85% to 100%) | 0 | 0 | 0 | 0 | 1.44 | 0.014 | 0 |
+| sql | control | 35 of 35, 100% (65% to 100%) | 0 | 0 | 0 | 0 | 0.47 | 0.014 | 0 |
+| sql | metric_definition | 30 of 30, 100% (61% to 100%) | 0 | 0 | 0 | 0 | 0.56 | 0.019 | 0 |
+| sql | out_of_scope | 65 of 65, 100% (77% to 100%) | 0 | 0 | 0 | 0 | 0.87 | 0.013 | 0 |
 | sql | unanswerable | 40 of 40 | 40 | 0 | 0 | 0 | 0.24 | 0.006 | 0 |
-| sql_schema_only | hierarchy | 101 of 105, 96% (91% to 99%) | 0 | double_count 4 | 0 | 0 | 2.94 | 0.029 | 0 |
-| sql_schema_only | control | 35 of 35, 100% (90% to 100%) | 0 | 0 | 0 | 0 | 0.69 | 0.020 | 0 |
-| sql_schema_only | metric_definition | 27 of 30, 90% (74% to 97%) | 0 | 0 | 3 | 0 | 1.19 | 0.044 | 0 |
-| sql_schema_only | out_of_scope | 65 of 65, 100% (94% to 100%) | 0 | 0 | 0 | 0 | 1.58 | 0.024 | 0 |
+| sql_schema_only | hierarchy | 101 of 105, 96% (79% to 99%) | 0 | double_count 4 | 0 | 0 | 2.94 | 0.029 | 0 |
+| sql_schema_only | control | 35 of 35, 100% (65% to 100%) | 0 | 0 | 0 | 0 | 0.69 | 0.020 | 0 |
+| sql_schema_only | metric_definition | 27 of 30, 90% (50% to 99%) | 0 | 0 | 3 | 0 | 1.19 | 0.044 | 0 |
+| sql_schema_only | out_of_scope | 65 of 65, 100% (77% to 100%) | 0 | 0 | 0 | 0 | 1.58 | 0.024 | 0 |
 | sql_schema_only | unanswerable | 35 of 40 | 35 | 0 | 5 | 0 | 0.39 | 0.011 | 0 |
 
 **Difference between arms**, semantic minus sql, in accuracy points, paired by question:
@@ -88,7 +88,7 @@ value
 
 [The transcript of this run](results/schema_only/runs/20261112T153515Z/H19-sql_schema_only-1.json)
 
-Intervals: Wilson score 95% for accuracy, a 95% bootstrap over questions (10,000 resamples, fixed seed) for differences.
+Intervals: Wilson score 95% for accuracy with the number of questions as the sample size, because repeats of one question are not independent; a 95% bootstrap over questions (10,000 resamples, fixed seed) for differences.
 
 Known wrong values are examples, not a complete list, so their counts are lower bounds.
 <!-- results:end -->
@@ -116,6 +116,7 @@ The scorer reads the rows a run returns, because rows are what a chart or anothe
 - That a department "plus" one of its own lines means the department's meter alone is a rule of this benchmark, which the owner accepted and which a reader may dispute. All 4 double counts depend on it.
 - One model (`claude-opus-5-5`), one day, one synthetic plant with clean data, absolute dates only, 55 questions written by an agent to resemble how plant staff ask. They are not logs of real users.
 - The reference answers were computed twice by separate writers from one specification. The owner read ten of the 47 and did not recompute them. [`docs/golden.md`](docs/golden.md) says what was and was not verified.
+- The accuracy intervals treat each question, not each run, as one observation, because the five repeats of a question mostly agree. A code review after the runs found the first version counted every run and was too narrow; the intervals shown are the wider ones. No count changed.
 - Costs are priced from the token counts in the API responses and were not checked against the invoice. The pilots before each run are not in the block; [`docs/review-log.md`](docs/review-log.md) gives the total.
 
 ## Run it

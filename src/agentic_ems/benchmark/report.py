@@ -22,7 +22,7 @@ BOOTSTRAP_SEED = 20261111
 EXAMPLE_ROWS = 5
 
 
-def wilson(correct: int, n: int) -> tuple[float, float]:
+def wilson(correct: float, n: int) -> tuple[float, float]:
     """The Wilson score 95% interval for correct out of n."""
     p = correct / n
     denominator = 1 + Z * Z / n
@@ -104,8 +104,10 @@ def build_block(results: dict) -> str:
             rs = of(arm, group)
             n, correct = len(rs), sum(r["correct"] for r in rs)
             accuracy = f"{correct} of {n}"
-            if done[arm] >= results["min_repeats"] and group != "unanswerable":
-                lo, hi = wilson(correct, n)
+            if enough and group != "unanswerable":
+                # Repeats of one question mostly agree, so the sample is the questions, not the runs.
+                asked = len({r["question"] for r in rs})
+                lo, hi = wilson(correct / n * asked, asked)
                 accuracy += f", {_pct(correct / n)} ({_pct(lo)} to {_pct(hi)})"
             known = ", ".join(
                 f"{c} {count}" for c in sorted(CATEGORIES) if (count := sum(r["category"] == c for r in rs))
@@ -150,7 +152,8 @@ def build_block(results: dict) -> str:
         ]
 
     if enough:
-        lines += ["", ("Intervals: Wilson score 95% for accuracy, a 95% bootstrap over questions (10,000 resamples, "
+        lines += ["", ("Intervals: Wilson score 95% for accuracy with the number of questions as the sample size, because "
+                       "repeats of one question are not independent; a 95% bootstrap over questions (10,000 resamples, "
                        "fixed seed) for differences.")]
     lines += ["", "Known wrong values are examples, not a complete list, so their counts are lower bounds."]
     return "\n".join(lines)

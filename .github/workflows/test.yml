@@ -13,3 +13,12 @@ jobs:
       - run: uv run python -m agentic_ems.generator
       - run: uv run pytest
       - run: uv run python -m agentic_ems.benchmark.verify
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend

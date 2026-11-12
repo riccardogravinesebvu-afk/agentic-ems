@@ -254,4 +254,8 @@ def generate(
 
 
 if __name__ == "__main__":
-    generate(Path("data/plant.duckdb"))
+    from agentic_ems.semantic import (
+        DEFAULT_DB,  # the path every reader opens, whatever the working directory
+    )
+
+    generate(DEFAULT_DB)

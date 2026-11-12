@@ -303,7 +303,8 @@ def run_benchmark(model, questions: list[Question], truths: dict[str, Truth], ar
         except KeyboardInterrupt:
             pass  # a second Ctrl-C ends the wait only: the save below still runs and the first error stays
         results["attempts_still_running"] = sum(m.thread is not None and m.thread.is_alive() for m in unscored)
-        if failure is None and results["runs"] and not any(run["cache_read_input_tokens"] for run in results["runs"]):
+        # With one run there may be a single response, which writes the cache and cannot read it.
+        if failure is None and len(results["runs"]) > 1 and not any(run["cache_read_input_tokens"] for run in results["runs"]):
             failure = "no arm ever read from cache"
         results["failure"] = failure
         save()
