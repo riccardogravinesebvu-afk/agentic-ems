@@ -235,6 +235,13 @@
 - 2026-11-13: the hosted page was redeployed at 6025b5e, after the owner said yes when asked
   (it had stayed at the build of f24d12e). The screenshot in the README was retaken from the
   hosted page.
+- 2026-11-13: a whole-repository read after the review (the generator, the report, the verifier
+  and the reference calculator were not reread). Three small changes: a closing call that fails
+  is now named in the run record and on the page; the sample recorder prices its calls with the
+  benchmark's meter, where it had its own copy; `docs/stack.md` gives the deploy command. Left
+  as they are: the page hides the headline number on every run with several requests; the
+  notice stays its own stream event, since changing it would put the hosted page behind the
+  repository for no visible difference; the stress runner repeats the benchmark's setup.
 - Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
