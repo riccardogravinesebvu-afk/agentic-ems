@@ -252,6 +252,14 @@
   owner checks the costs against the invoice; the sentence in "Why this exists" now says "built
   from zero", not "rebuilt", so it cannot be read as a rebuild of the production system (the
   design document keeps the earlier wording).
+- 2026-11-13, final name check, run by the owner in the separate session that can read the
+  production system, on this repository at 4ae0355 (tracked files, all 81 commits and their
+  messages), as the owner reported it here: 882 identifiers searched, none of the real system
+  found (customer, employer, product, database, schema, table, column, view, procedure,
+  service, host, meter, department, plant). The only match is the owner's own name, in the
+  licence, the design document and the commit author. No table in `docs/schema.md` has the
+  column set or column order of a real table. This session did not see that report or the
+  system, only the owner's summary of it.
 - Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
