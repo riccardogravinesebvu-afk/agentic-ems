@@ -69,7 +69,8 @@ describe("chartKind", () => {
     expect(chartKind(breakdownSample.columns!, breakdownSample.rows!)).toBe("bar")
     expect(chartKind(["tariff_band", "value"], [["test_band", 1]])).toBe("bar")
     expect(chartKind(["meter_id", "bucket_start", "value"], [["m", "2001-01-01", 1]])).toBe("line")
-    expect(chartKind(["bucket_start", "tariff_band", "value"], [["2001-01-01", "test_band", 1]])).toBe("area")
+    expect(chartKind(["bucket_start", "tariff_band", "value"], [["2001-01-01", "a", 1], ["2001-01-02", "a", 1]])).toBe("area")
+    expect(chartKind(["bucket_start", "tariff_band", "value"], [["2001-01-01", "a", 1], ["2001-01-01", "b", 1]])).toBe("bar")
     expect(chartKind(["meter_id", "bucket_start", "tariff_band", "value"], [["m", "2001-01-01", "test_band", 1]])).toBe("line")
     expect(chartKind(singleSample.columns!, singleSample.rows!)).toBe("none")
   })
@@ -307,5 +308,11 @@ describe("textBlocks", () => {
   })
   it("leaves a table whose separator has not streamed in yet as text", () => {
     expect(textBlocks("| A | B |")).toEqual([{ kind: "text", text: "| A | B |" }])
+  })
+  it("keeps an escaped pipe inside its cell and wants a dash in the separator", () => {
+    expect(textBlocks("| A | B |\n|---|---|\n| a \\| b | 2 |")).toEqual([
+      { kind: "table", header: ["A", "B"], rows: [["a | b", "2"]] },
+    ])
+    expect(textBlocks("| note |\n| |")).toEqual([{ kind: "text", text: "| note |\n| |" }])
   })
 })

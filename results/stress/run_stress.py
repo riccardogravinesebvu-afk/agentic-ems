@@ -5,6 +5,7 @@ Each run is saved as runs/<id>-<arm>.json; a run already saved is not run again.
 """
 
 import argparse
+import json
 import os
 import sys
 import tomllib
@@ -30,15 +31,21 @@ def main() -> int:
     args = parser.parse_args()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("This makes paid API calls: set ANTHROPIC_API_KEY first.")
+    if args.eur_per_usd <= 0:
+        parser.error("--eur-per-usd must be positive")
     questions = tomllib.loads((HERE / "questions.toml").read_text())["question"]
     only = set(filter(None, args.only.split(",")))
+    if unknown := only - {q["id"] for q in questions}:
+        parser.error(f"unknown question ids: {sorted(unknown)}")
     con = open_db(DEFAULT_DB)
     with con.cursor() as cursor:
         catalog = load_catalog(cursor)
     arms = [semantic_arm(con, catalog), sql_arm(con, (HERE.parents[1] / "docs" / "schema.md").read_text())]
     model = make_model(effort="medium", max_tokens=16000)  # the settings of the recorded benchmark runs
     (HERE / "runs").mkdir(exist_ok=True)
-    spent = 0.0
+    # The cap covers every start of this script: what the saved runs cost counts as spent.
+    # shortcut: a run that raises is not saved, so its cost is forgotten on the next start; it is printed below.
+    spent = sum(json.loads(p.read_text())["cost_eur"] for p in (HERE / "runs").glob("*.json"))
     for q in questions:
         for arm in arms:
             out = HERE / "runs" / f"{q['id']}-{arm.name}.json"

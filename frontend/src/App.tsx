@@ -236,8 +236,8 @@ export default function App() {
                 {answered && view.rows!.length === 0 && <p className="font-medium">No rows for this request.</p>}
                 {view.requests > 1 && (
                   <p className="text-sm text-muted-foreground">
-                    The model made {view.requests} requests and worked the answer out in its text. The request, chart
-                    and rows shown are the last one only.
+                    The model ran {view.requests} requests. The request, chart and rows shown are the last one only;
+                    its text says how they answer the question.
                   </p>
                 )}
                 {view.refusal !== null && <p className="font-medium">Out of scope: {view.refusal}</p>}
@@ -303,15 +303,16 @@ export default function App() {
 function Chart(props: { kind: "line" | "area" | "bar"; columns: string[]; rows: Row[]; unit: string; metric: unknown }) {
   const { kind, columns, rows, unit } = props
   const { xName, data: points, series } = pivot(columns, rows)
+  const keys = series.map((_, i) => `s${i}`)
   // A band with no row on a day used nothing that day (a Sunday has one band): 0, so the stack has no hole.
-  const data = kind === "area" ? points.map((p) => ({ ...Object.fromEntries(series.map((_, i) => [`s${i}`, 0])), ...p })) : points
+  const zeros = Object.fromEntries(keys.map((k) => [k, 0]))
+  const data = kind === "area" ? points.map((p) => ({ ...zeros, ...p })) : points
   const formatKey = keyFormatter(columns, rows)
   const metric = typeof props.metric === "string" ? props.metric : "value"
   // shortcut: four colours that read on white (chart-1 is too light), repeated past four series; upgrade if a sample needs more.
   const config: ChartConfig = Object.fromEntries(
     series.map((name, i) => [`s${i}`, { label: series.length > 1 ? name : metric, color: `var(--chart-${2 + (i % 4)})` }]),
   )
-  const keys = series.map((_, i) => `s${i}`)
   const axes = (
     <>
       <CartesianGrid vertical={false} />

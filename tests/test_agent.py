@@ -96,6 +96,19 @@ def test_the_limit_is_followed_by_one_turn_without_tools(sem):
     assert model.call_kwargs[-1]["tools"] == sem.tools  # the history holds tool calls, so the tools stay declared
 
 
+@pytest.mark.parametrize("closing", [[reply(text="The", stop_reason="max_tokens")], [reply(stop_reason="refusal")], []])
+def test_a_closing_turn_that_fails_keeps_the_rows(sem, closing):
+    # Cut off, refused, or the call itself raising (the fake's script is empty): the rows were already the answer.
+    record, _ = run(sem, *[reply(("query_metric", GOOD))] * 4, *closing)
+    assert record.final == "rows" and len(record.rows) == 4 and record.cause is None
+
+
+def test_a_limit_of_zero_ends_without_an_answer(con, catalog):
+    none = semantic_arm(con, catalog, max_tool_calls=0)
+    record = run_agent(ScriptedChatModel(script=[reply(("query_metric", GOOD)), reply(text="Nothing.")]), none, Q)
+    assert record.calls == [] and record.final == "none" and record.cause == "max_tool_calls"
+
+
 def test_calls_in_one_message_run_in_order_and_count(sem):
     meters = [{"metric": "consumption_kwh", "node": m} | PERIOD for m in ("dept_a", "dept_b", "dept_c", "dept_d")]
     record, model = run(sem, reply(*[("query_metric", m) for m in meters[:3]]),

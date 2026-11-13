@@ -51,8 +51,8 @@ No run returned a wrong value. Every value the two arms both gave agrees.
   ends with text. Calls past the limit get an error result instead of none. This was added the day after
   the run, on the owner's word. Of the 825 recorded benchmark runs, one had reached the limit
   (`sql_schema_only`); the score reads the rows, which the closing turn cannot change, so the README's
-  numbers stand and were not rerun. A run whose closing turn is cut off or refused by the provider would
-  count as no answer, as any run ending that way does.
+  numbers stand and were not rerun. A closing turn that is cut off, refused or fails leaves the run's outcome
+  as it was.
 - S5 on `semantic` was run once more after the change (`runs/S5-semantic.json`; the first run is kept as
   `runs/S5-semantic-before.json`). The model made one request this time, for the daily peaks of all six
   months, saw 50 of 181 rows and answered for January and February only, saying so. The closing turn itself

@@ -123,7 +123,10 @@ function eventParser(onEvent: OnEvent): (chunk: string) => void {
 export function chartKind(columns: string[], rows: Row[]): "line" | "area" | "bar" | "none" {
   if (rows.length === 0) return "none"
   // Tariff bands split one total over time, so they stack to it. Meters are never stacked: a parent holds its children.
-  if (columns.includes("bucket_start") && columns.includes("tariff_band") && !columns.includes("meter_id")) return "area"
+  if (columns.includes("bucket_start") && columns.includes("tariff_band") && !columns.includes("meter_id")) {
+    const at = columns.indexOf("bucket_start")
+    return new Set(rows.map((row) => row[at])).size > 1 ? "area" : "bar" // one bucket has no area to draw
+  }
   if (columns.includes("bucket_start")) return "line"
   if (columns.includes("meter_id") || columns.includes("tariff_band")) return "bar"
   return "none"
@@ -213,7 +216,9 @@ export function pivot(columns: string[], rows: Row[]) {
 
 export type TextBlock = { kind: "text"; text: string } | { kind: "table"; header: string[]; rows: string[][] }
 
-const cells = (line: string) => line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim())
+// shortcut: a pipe inside a code span still splits the cell; use a Markdown parser if answers start to hold them.
+const cells = (line: string) =>
+  line.trim().replace(/^\||(?<!\\)\|$/g, "").split(/(?<!\\)\|/).map((cell) => cell.trim().replaceAll("\\|", "|"))
 
 /** The model's text cut into paragraphs and Markdown tables; a table counts once its separator line has arrived. */
 export function textBlocks(text: string): TextBlock[] {
@@ -226,7 +231,7 @@ export function textBlocks(text: string): TextBlock[] {
     plain = []
   }
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith("|") && /^\|[\s:|-]+\|\s*$/.test(lines[i + 1] ?? "")) {
+    if (lines[i].startsWith("|") && /^\|(?=.*-)[\s:|-]+\|\s*$/.test(lines[i + 1] ?? "")) {
       flush()
       const header = cells(lines[i])
       const rows: string[][] = []

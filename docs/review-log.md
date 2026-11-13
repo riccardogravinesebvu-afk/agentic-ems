@@ -217,6 +217,21 @@
   were kept and not rerun. Two paid calls checked it (S5 again, and one run under a limit of one
   request), 0.08 EUR, inside the stress test's approved cap. The 50-row limit and the request
   language were left as they are: both change the measured agent, and a rerun is over budget.
+- `/code-review high` on the commits after f24d12e (run at 30363d6, 2026-11-13), with a second
+  independent review of the same range. Ten findings, none a wrong value in a recorded result.
+  - Fixed: a closing turn that was cut off, refused or failed threw away rows the run already
+    had, against what the README says (now the outcome is settled before that turn); a limit of
+    zero calls raised an error; the page's notice claimed the model "worked the answer out in
+    its text" whenever it ran several requests, which is false for a two-step lookup (reworded);
+    one time bucket split by tariff band was drawn as a stacked area with nothing to draw (now
+    bars); an escaped pipe split a table cell and a line with no dash passed as a table
+    separator; the stress runner's cap restarted from zero on every start and took a zero or
+    negative exchange rate and unknown question ids.
+  - Left: the notice travels as its own stream event where a field on the request event would
+    do; the stress runner repeats the benchmark runner's setup and imports its private writer;
+    a pipe inside a code span still splits a table cell; the page hides the headline number on
+    every run with several requests, also when the last rows are the answer.
+  - Not checked by the review: nothing was run against the live API.
 - Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the

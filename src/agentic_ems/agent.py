@@ -150,8 +150,6 @@ class State(TypedDict):
 
 def build_graph(model: BaseChatModel, arm: Arm):
     bound = model.bind_tools(arm.tools)
-    # ChatAnthropic passes a dict through as the API's tool_choice; the base class types it as str.
-    closer = model.bind_tools(arm.tools, tool_choice={"type": "none"})  # type: ignore[arg-type]
     system = SystemMessage(arm.system)  # type: ignore[arg-type]
 
     def llm_call(state: State) -> dict:
@@ -193,10 +191,15 @@ def build_graph(model: BaseChatModel, arm: Arm):
 
     def closing(state: State) -> dict:
         # The limit is reached: one last turn with the tools switched off, so the run ends with text.
-        return {"messages": [closer.invoke([system, *state["messages"]])]}
+        # ChatAnthropic passes a dict through as the API's tool_choice; the base class types it as str.
+        closer = model.bind_tools(arm.tools, tool_choice={"type": "none"})  # type: ignore[arg-type]
+        try:
+            return {"messages": [closer.invoke([system, *state["messages"]])]}
+        except Exception:  # noqa: BLE001 - the run's outcome is settled; a failed closing text must not lose it
+            return {"messages": []}
 
     def after_tools(state: State) -> str:
-        if state["calls"][-1]["name"] == "refuse":
+        if state["calls"] and state["calls"][-1]["name"] == "refuse":
             return END
         return "closing" if len(state["calls"]) >= arm.max_tool_calls else "llm_call"
 
@@ -254,7 +257,8 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
 
     calls = state["calls"]
     successes = [c["result"] for c in calls if c["name"] == arm.exec_tool and c["result"].ok]
-    stop_reason = responses[-1].response_metadata.get("stop_reason")
+    # At the limit the last response is the closing text, which never decides the outcome, even cut off or refused.
+    stop_reason = None if len(calls) >= arm.max_tool_calls else responses[-1].response_metadata.get("stop_reason")
     final: Literal["rows", "refusal", "none"] = "none"
     cause = refusal_reason = None
     if stop_reason in ("refusal", "max_tokens"):  # the graph ends on such a response, so it is the last
