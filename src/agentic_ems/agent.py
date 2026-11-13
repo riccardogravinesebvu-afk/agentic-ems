@@ -12,7 +12,7 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -86,6 +86,7 @@ class RunRecord:
     cause: str | None  # set only when final == "none": "max_tool_calls", "max_tokens", "provider_refusal", "no_tool_call"
     usage: dict[str, int]
     served_model: str
+    closing_error: str | None = None  # the closing turn's exception type, when that call failed
 
 
 class ModelMismatch(RuntimeError):
@@ -146,6 +147,7 @@ def semantic_arm(con, catalog: Catalog, say_today: bool = False, max_tool_calls:
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
     calls: Annotated[list[dict], operator.add]  # one per executed tool call: name, args, result; its length is the count
+    closing_error: NotRequired[str]
 
 
 def build_graph(model: BaseChatModel, arm: Arm):
@@ -195,8 +197,8 @@ def build_graph(model: BaseChatModel, arm: Arm):
         closer = model.bind_tools(arm.tools, tool_choice={"type": "none"})  # type: ignore[arg-type]
         try:
             return {"messages": [closer.invoke([system, *state["messages"]])]}
-        except Exception:  # noqa: BLE001 - the run's outcome is settled; a failed closing text must not lose it
-            return {"messages": []}
+        except Exception as exc:  # noqa: BLE001 - the run's outcome is settled; a failed closing text must not lose it
+            return {"messages": [], "closing_error": type(exc).__name__}
 
     def after_tools(state: State) -> str:
         if state["calls"] and state["calls"][-1]["name"] == "refuse":
@@ -289,6 +291,7 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
         cause=cause,
         usage=usage,
         served_model=served_model,
+        closing_error=state.get("closing_error"),
     )
 
 

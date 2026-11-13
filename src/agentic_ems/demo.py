@@ -6,7 +6,6 @@ Run with: uv run python -m agentic_ems.demo serve   (free text, on the reader's 
 
 import argparse
 import asyncio
-import itertools
 import json
 import os
 import sys
@@ -17,7 +16,6 @@ from pathlib import Path
 import uvicorn
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
-from langchain_core.outputs import ChatGeneration, LLMResult
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -26,8 +24,8 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from agentic_ems.agent import USAGE_KEYS, RunRecord, make_model, run_agent, semantic_arm
-from agentic_ems.benchmark.run import cost_eur
+from agentic_ems.agent import RunRecord, make_model, run_agent, semantic_arm
+from agentic_ems.benchmark.run import Meter
 from agentic_ems.semantic import DEFAULT_DB, load_catalog, open_db
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -129,6 +127,8 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
                 record = run_agent(model_factory(), arm, question, callbacks=[StopOnDisconnect(stop)],
                                    on_text=lambda delta: put(_event("text", {"delta": delta})))
                 answer = _answer(record)
+                if record.closing_error:
+                    put(_event("text", {"delta": f"(The model's closing text failed: {record.closing_error}.)"}))
                 if record.final == "rows":
                     if answer["requests"] > 1:
                         put(_event("note", {"requests": answer["requests"]}))
@@ -172,20 +172,6 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
         routes.append(Mount("/", StaticFiles(directory=DIST, html=True)))  # StaticFiles refuses paths outside DIST
     # The Host check stops DNS rebinding from making an outside page same-origin; it ignores the port.
     return Starlette(routes=routes, middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])])
-
-
-class Spend(BaseCallbackHandler):
-    """The tokens of every response, those of a run that later fails included."""
-
-    def __init__(self) -> None:
-        self.usage = dict.fromkeys(USAGE_KEYS, 0)
-
-    def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        for generation in itertools.chain.from_iterable(response.generations):
-            if isinstance(generation, ChatGeneration):
-                raw = generation.message.response_metadata.get("usage") or {}
-                for key in USAGE_KEYS:
-                    self.usage[key] += raw.get(key) or 0
 
 
 def _text(record: RunRecord) -> str:
@@ -243,12 +229,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         uvicorn.run(build_app(con), host=HOST, port=PORT)
         return 0
-    spend = Spend()
+    meter = Meter(args.eur_per_usd)  # every response is priced, those of a run that later fails included
     try:
-        return record(_demo_model(), con, SAMPLES, callbacks=[spend])
+        return record(_demo_model(), con, SAMPLES, callbacks=[meter])
     finally:
-        tokens = ", ".join(f"{key} {value}" for key, value in spend.usage.items())
-        print(f"Spent {cost_eur(spend.usage, args.eur_per_usd):.4f} EUR: {tokens}", file=sys.stderr)
+        print(f"Spent {meter.cost:.4f} EUR.", file=sys.stderr)
 
 
 if __name__ == "__main__":

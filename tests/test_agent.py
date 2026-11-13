@@ -101,6 +101,7 @@ def test_a_closing_turn_that_fails_keeps_the_rows(sem, closing):
     # Cut off, refused, or the call itself raising (the fake's script is empty): the rows were already the answer.
     record, _ = run(sem, *[reply(("query_metric", GOOD))] * 4, *closing)
     assert record.final == "rows" and len(record.rows) == 4 and record.cause is None
+    assert record.closing_error == (None if closing else "IndexError")  # a failed call is named, not hidden
 
 
 def test_a_limit_of_zero_ends_without_an_answer(con, catalog):

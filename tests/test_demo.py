@@ -9,6 +9,7 @@ from starlette.testclient import TestClient
 
 from agentic_ems import demo
 from agentic_ems.agent import run_agent, semantic_arm
+from agentic_ems.benchmark.run import Meter
 from agentic_ems.semantic import load_catalog, open_db, query
 
 PERIOD = {"start": "2026-10-20", "end": "2026-10-23"}
@@ -80,6 +81,9 @@ def test_a_run_at_the_call_limit_still_ends_with_text(con, monkeypatch):
     model = ScriptedChatModel(script=[*[reply(("query_metric", DAILY))] * 4, reply(text="Summed up.")])
     got = ask(con, model, Q, monkeypatch)
     assert ("note", {"requests": 4}) in got and streamed_text(got) == "Summed up."
+    model = ScriptedChatModel(script=[reply(("query_metric", DAILY))] * 4)  # the closing call raises: no script left
+    got = ask(con, model, Q, monkeypatch)
+    assert streamed_text(got) == "(The model's closing text failed: IndexError.)" and got[-2][0] == "rows"
 
 
 def test_refusal_streams_the_reason(con, monkeypatch):
@@ -239,8 +243,8 @@ def test_record_writes_one_file_per_question_and_an_index(con, tmp_path):
     script = [*answer, reply(("query_metric", BY_DEPT)), reply(text="Done."),
               reply(("query_metric", BY_LINE)), reply(text="Done."), reply(("refuse", {"reason": "No ranking."}))]
     model = ScriptedChatModel(script=script)
-    spend = demo.Spend()
-    assert demo.record(model, con, tmp_path, callbacks=[spend]) == 0
+    meter = Meter(1.0)
+    assert demo.record(model, con, tmp_path, callbacks=[meter]) == 0
     assert model.script == [] and len(model.received) == 7  # one run per question, no retry
 
     index = json.loads((tmp_path / "index.json").read_text())
@@ -257,7 +261,7 @@ def test_record_writes_one_file_per_question_and_an_index(con, tmp_path):
     (tmp_path / "1.json").write_text(json.dumps(first))
     with pytest.raises(AssertionError):
         check_sample(tmp_path / "1.json", con, catalog)
-    assert spend.usage["input_tokens"] == 70 and spend.usage["output_tokens"] == 35
+    assert meter.cost == pytest.approx((70 * 4.00 + 35 * 20.00) / 1_000_000)  # seven responses, priced
 
 
 def test_saved_text_is_what_the_server_streams(con, tmp_path, monkeypatch):
