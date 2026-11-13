@@ -8,7 +8,7 @@ README = (ROOT / "README.md").read_text()
 OPENING = "Written from scratch on synthetic data. No code, schema or data from any employer or customer."
 WHY = (
     "I run a system of this kind in production for seven manufacturers. That code is not mine to publish and "
-    "stays where it is. This repository is the method, rebuilt from zero so it can be read, run and criticised: "
+    "stays where it is. This repository is the method, built from zero so it can be read, run and criticised: "
     "what happens when the model stops writing SQL and a semantic layer decides how each metric aggregates."
 )
 

@@ -242,6 +242,16 @@
   as they are: the page hides the headline number on every run with several requests; the
   notice stays its own stream event, since changing it would put the hosted page behind the
   repository for no visible difference; the stress runner repeats the benchmark's setup.
+- 2026-11-13, before the first push: gitleaks (container image `ghcr.io/gitleaks/gitleaks`,
+  latest that day) over all 80 commits found no leak; this is the secret scan `/cso` could not
+  run. Over the working folder it flagged one file, a local browser-tool token under the
+  ignored `.gstack/`, never committed. Every commit has the one author and a GitHub no-reply
+  address, and no message carries a tool trailer. The workflow's three actions are now pinned
+  by commit.
+- 2026-11-13, owner's word: the owner has read the private list of problem classes in full; the
+  owner checks the costs against the invoice; the sentence in "Why this exists" now says "built
+  from zero", not "rebuilt", so it cannot be read as a rebuild of the production system (the
+  design document keeps the earlier wording).
 - Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the

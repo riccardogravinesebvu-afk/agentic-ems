@@ -164,7 +164,7 @@ uv run python -m agentic_ems.benchmark.run --help
 
 ## Why this exists
 
-I run a system of this kind in production for seven manufacturers. That code is not mine to publish and stays where it is. This repository is the method, rebuilt from zero so it can be read, run and criticised: what happens when the model stops writing SQL and a semantic layer decides how each metric aggregates.
+I run a system of this kind in production for seven manufacturers. That code is not mine to publish and stays where it is. This repository is the method, built from zero so it can be read, run and criticised: what happens when the model stops writing SQL and a semantic layer decides how each metric aggregates.
 
 ## How this was built
 
