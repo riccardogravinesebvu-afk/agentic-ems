@@ -39,7 +39,6 @@ type View = {
   refusal: string | null
   error: string | null
   requests: number
-  unfinished: boolean
   streaming: boolean
 }
 
@@ -53,7 +52,6 @@ const EMPTY: View = {
   refusal: null,
   error: null,
   requests: 1,
-  unfinished: false,
   streaming: false,
 }
 const MAX_QUESTION_CHARS = 500 // the server's limit, MAX_QUESTION_CHARS in src/agentic_ems/demo.py
@@ -64,7 +62,7 @@ function apply(view: View, event: StreamEvent): View {
     case "text":
       return { ...view, text: view.text + event.data.delta }
     case "note":
-      return { ...view, requests: event.data.requests, unfinished: event.data.unfinished }
+      return { ...view, requests: event.data.requests }
     case "request":
       return { ...view, request: event.data.request, sql: event.data.sql }
     case "rows":
@@ -229,20 +227,14 @@ export default function App() {
                   <p className="text-sm text-muted-foreground">Pick a recorded answer or ask your own question.</p>
                 )}
                 {view.question !== "" && <p className="text-sm text-muted-foreground">{view.question}</p>}
-                {top && view.requests === 1 && !view.unfinished && (
+                {top && view.requests === 1 && (
                   <p>
                     <span className="text-3xl font-semibold tabular-nums">{formatValue(top.value, unit)}</span>
                     {top.label && <span className="ml-2 text-sm text-muted-foreground">{top.label}</span>}
                   </p>
                 )}
                 {answered && view.rows!.length === 0 && <p className="font-medium">No rows for this request.</p>}
-                {view.unfinished && (
-                  <p className="font-medium">
-                    The model used all its requests before writing an answer. The rows shown are those of its last
-                    request, not an answer.
-                  </p>
-                )}
-                {view.requests > 1 && !view.unfinished && (
+                {view.requests > 1 && (
                   <p className="text-sm text-muted-foreground">
                     The model made {view.requests} requests and worked the answer out in its text. The request, chart
                     and rows shown are the last one only.

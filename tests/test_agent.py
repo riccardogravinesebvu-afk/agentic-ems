@@ -82,19 +82,26 @@ def test_refuse_ends_the_run(sem):
 
 
 def test_fifth_tool_call_is_not_executed(sem):
-    record, _ = run(sem, reply(*[("query_metric", BAD)] * 4, ("query_metric", GOOD)))
+    record, _ = run(sem, reply(*[("query_metric", BAD)] * 4, ("query_metric", GOOD)), reply(text="No luck."))
     assert len(record.calls) == 4 and record.final == "none" and record.cause == "max_tool_calls"
 
-    record, _ = run(sem, reply(("query_metric", GOOD), *[("query_metric", BAD)] * 4))
+    record, _ = run(sem, reply(("query_metric", GOOD), *[("query_metric", BAD)] * 4), reply(text="Four rows."))
     assert len(record.calls) == 4 and record.final == "rows" and len(record.rows) == 4
+
+
+def test_the_limit_is_followed_by_one_turn_without_tools(sem):
+    record, model = run(sem, *[reply(("query_metric", GOOD))] * 4, reply(text="Summed up."))
+    assert record.messages[-1]["content"] == "Summed up." and record.final == "rows"
+    assert [k.get("tool_choice") for k in model.call_kwargs] == [None] * 4 + [{"type": "none"}]
+    assert model.call_kwargs[-1]["tools"] == sem.tools  # the history holds tool calls, so the tools stay declared
 
 
 def test_calls_in_one_message_run_in_order_and_count(sem):
     meters = [{"metric": "consumption_kwh", "node": m} | PERIOD for m in ("dept_a", "dept_b", "dept_c", "dept_d")]
     record, model = run(sem, reply(*[("query_metric", m) for m in meters[:3]]),
-                        reply(("query_metric", meters[3]), ("query_metric", GOOD)))
+                        reply(("query_metric", meters[3]), ("query_metric", GOOD)), reply(text="Done."))
     assert [c["args"] for c in record.calls] == meters
-    assert len(model.received) == 2
+    assert len(model.received) == 3 and tool_messages(model)[-1].status == "error"  # the fifth: answered, not run
     assert record.final == "rows" and record.rows == record.successful_results[-1][1]
     assert len(record.rows) == 1  # dept_d's total, not the breakdown that came fifth
 
@@ -167,6 +174,9 @@ def test_system_has_one_cache_breakpoint_and_no_tool_choice(sem, sql, monkeypatc
     payload = bound.bound._get_request_payload([SystemMessage(sem.system), HumanMessage(Q)], **bound.kwargs)
     assert payload["system"][-1]["cache_control"] == {"type": "ephemeral"}
     assert "tool_choice" not in payload and [t["name"] for t in payload["tools"]] == ["query_metric", "refuse"]
+    closer = make_model(effort="high", max_tokens=4000).bind_tools(sem.tools, tool_choice={"type": "none"})
+    payload = closer.bound._get_request_payload([SystemMessage(sem.system), HumanMessage(Q)], **closer.kwargs)
+    assert payload["tool_choice"] == {"type": "none"} and len(payload["tools"]) == 2  # the closing turn's request
 
 
 def test_arms_differ_only_in_context_and_exec_tool(sem, sql, catalog):
@@ -261,16 +271,14 @@ def test_on_text_streams_the_reply_text(sem):
 @pytest.mark.parametrize(
     "script",
     [
-        [reply(*[("query_metric", BAD)] * 5)],  # five calls in one message
-        [reply(*[("query_metric", BAD)] * 3), reply(("query_metric", BAD), ("query_metric", GOOD))],  # 3 then 2
         [reply(("refuse", {"reason": "no data"}), ("query_metric", GOOD))],  # a call after refuse
         [reply(("query_metric", GOOD), stop_reason="refusal")],  # provider refusal with calls present
         [reply(("query_metric", GOOD), stop_reason="max_tokens")],  # cut off with calls present
     ],
 )
 def test_calls_not_run_end_the_run(sem, script):
-    # A call is left unrun only when the run ends there, so no model call follows and no tool_use needs a result.
-    # The fake asserts that every call of the previous response has a result before each model call.
+    # A call is left without a result only when the run ends there, so no model call follows.
+    # (Calls past the limit get an error result: the fake asserts every call has one before each model call.)
     model = ScriptedChatModel(script=[*script, reply(text="never sent")])
     record = run_agent(model, sem, Q)
     assert len(model.received) == len(script) and len(model.script) == 1
@@ -286,5 +294,5 @@ def test_instructions_state_the_loop_limit(con, catalog, sem):
     assert "You have 4 tool calls in total." in sem.system[0]["text"]
     three = semantic_arm(con, catalog, max_tool_calls=3)
     assert "You have 3 tool calls in total." in three.system[0]["text"]
-    record = run_agent(ScriptedChatModel(script=[reply(*[("query_metric", BAD)] * 4)]), three, Q)
+    record = run_agent(ScriptedChatModel(script=[reply(*[("query_metric", BAD)] * 4), reply(text="None.")]), three, Q)
     assert len(record.calls) == 3 and record.cause == "max_tool_calls"

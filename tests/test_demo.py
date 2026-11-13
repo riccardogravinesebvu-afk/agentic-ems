@@ -73,13 +73,13 @@ def test_several_requests_are_announced_before_the_last_one(con, monkeypatch):
     model = ScriptedChatModel(script=[reply(("query_metric", DAILY)), reply(("query_metric", BY_DEPT)), reply(text="Done.")])
     got = ask(con, model, Q, monkeypatch)
     assert [name for name, _ in got][-4:] == ["note", "request", "rows", "done"]
-    assert got[-4][1] == {"requests": 2, "unfinished": False} and got[-3][1]["request"] == BY_DEPT
+    assert got[-4][1] == {"requests": 2} and got[-3][1]["request"] == BY_DEPT
 
 
-def test_a_run_cut_at_the_call_limit_is_announced_as_unfinished(con, monkeypatch):
-    model = ScriptedChatModel(script=[reply(("query_metric", DAILY))] * 4)  # the limit: no closing turn follows
+def test_a_run_at_the_call_limit_still_ends_with_text(con, monkeypatch):
+    model = ScriptedChatModel(script=[*[reply(("query_metric", DAILY))] * 4, reply(text="Summed up.")])
     got = ask(con, model, Q, monkeypatch)
-    assert ("note", {"requests": 4, "unfinished": True}) in got and streamed_text(got) == ""
+    assert ("note", {"requests": 4}) in got and streamed_text(got) == "Summed up."
 
 
 def test_refusal_streams_the_reason(con, monkeypatch):

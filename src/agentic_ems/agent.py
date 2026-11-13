@@ -150,6 +150,8 @@ class State(TypedDict):
 
 def build_graph(model: BaseChatModel, arm: Arm):
     bound = model.bind_tools(arm.tools)
+    # ChatAnthropic passes a dict through as the API's tool_choice; the base class types it as str.
+    closer = model.bind_tools(arm.tools, tool_choice={"type": "none"})  # type: ignore[arg-type]
     system = SystemMessage(arm.system)  # type: ignore[arg-type]
 
     def llm_call(state: State) -> dict:
@@ -162,7 +164,10 @@ def build_graph(model: BaseChatModel, arm: Arm):
         assert isinstance(last, AIMessage)
         for call in last.tool_calls:
             if len(state["calls"]) + len(calls) == arm.max_tool_calls:
-                break  # calls past the limit are not run
+                # Not run and not counted, but answered: the closing turn needs a result for every call.
+                messages.append(ToolMessage("Error: not run, the tool call limit is reached.",
+                                            tool_call_id=call["id"], status="error"))
+                continue
             if call["name"] == "refuse":
                 result = ToolResult(True, "Refusal recorded.")
             elif call["name"] == arm.exec_tool:
@@ -186,16 +191,23 @@ def build_graph(model: BaseChatModel, arm: Arm):
             return END
         return "tool_node" if isinstance(last, AIMessage) and last.tool_calls else END
 
+    def closing(state: State) -> dict:
+        # The limit is reached: one last turn with the tools switched off, so the run ends with text.
+        return {"messages": [closer.invoke([system, *state["messages"]])]}
+
     def after_tools(state: State) -> str:
-        done = len(state["calls"]) >= arm.max_tool_calls or state["calls"][-1]["name"] == "refuse"
-        return END if done else "llm_call"
+        if state["calls"][-1]["name"] == "refuse":
+            return END
+        return "closing" if len(state["calls"]) >= arm.max_tool_calls else "llm_call"
 
     graph = StateGraph(State)
     graph.add_node("llm_call", llm_call)
     graph.add_node("tool_node", tool_node)
     graph.add_edge(START, "llm_call")
     graph.add_conditional_edges("llm_call", after_llm, ["tool_node", END])
-    graph.add_conditional_edges("tool_node", after_tools, ["llm_call", END])
+    graph.add_node("closing", closing)
+    graph.add_conditional_edges("tool_node", after_tools, ["llm_call", "closing", END])
+    graph.add_edge("closing", END)
     return graph.compile()
 
 
@@ -221,7 +233,7 @@ def run_agent(model: BaseChatModel, arm: Arm, question: str, *, requested_model:
         for mode, data in graph.stream(start, config, stream_mode=["messages", "values"]):  # type: ignore[arg-type]
             if mode == "values":
                 state = data
-            elif data[1].get("langgraph_node") == "llm_call" and data[0].text:
+            elif data[1].get("langgraph_node") in ("llm_call", "closing") and data[0].text:
                 if texted is not None and data[0].id != texted:
                     on_text("\n\n")  # a new model turn: its text does not run into the previous one
                 texted = data[0].id

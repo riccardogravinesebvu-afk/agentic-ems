@@ -46,8 +46,17 @@ No run returned a wrong value. Every value the two arms both gave agrees.
 ## What changed because of it
 
 - The page now says when the model made several requests ("the request, chart and rows shown are the last
-  one only") and no longer shows a headline number then. It says so too when a run used all its requests
-  before writing an answer.
+  one only") and no longer shows a headline number then.
+- The agent now gets one closing turn when it reaches the call limit, with the tools switched off, so a run
+  ends with text. Calls past the limit get an error result instead of none. This was added the day after
+  the run, on the owner's word. Of the 825 recorded benchmark runs, one had reached the limit
+  (`sql_schema_only`); the score reads the rows, which the closing turn cannot change, so the README's
+  numbers stand and were not rerun. A run whose closing turn is cut off or refused by the provider would
+  count as no answer, as any run ending that way does.
+- S5 on `semantic` was run once more after the change (`runs/S5-semantic.json`; the first run is kept as
+  `runs/S5-semantic-before.json`). The model made one request this time, for the daily peaks of all six
+  months, saw 50 of 181 rows and answered for January and February only, saying so. The closing turn itself
+  was checked with a live call under a limit of one request: the run ended with a written answer.
 - Tariff bands over time are drawn as a stacked area (S2, S6). This was added just before the run.
 
 ## What did not change, and why
@@ -55,8 +64,9 @@ No run returned a wrong value. Every value the two arms both gave agrees.
 - **No other chart type.** Lines, bars and the stacked area drew every result the semantic arm returned.
   The answers that would want another chart (six bars for S5, two bars per machine for S7) are ones the
   layer cannot return in one request, so a new chart would have nothing to draw.
-- **The agent loop and the 50-row limit.** Giving the model a closing turn at the limit, or showing it more
-  rows, changes the agent the benchmark measured. That is a decision for the owner, with a rerun or a clear
-  note next to the recorded numbers.
+- **The 50-row limit.** Showing the model more rows changes what it reads in most runs, so it changes the
+  agent the benchmark measured, and a rerun costs more than the budget has left. The second S5 run shows
+  this limit is what now stands between that question and a full answer.
 - **The request language.** Several periods in one request and ratios of two metrics are the real gap. They
-  are the next piece of work, not a fix.
+  are the next piece of work, not a fix: a wider request language is a different semantic arm, and its
+  numbers would need a new benchmark run.

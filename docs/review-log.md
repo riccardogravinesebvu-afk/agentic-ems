@@ -211,7 +211,13 @@
   approved the whole run. No wrong value; one run ended with rows and no answer; the page was
   changed to say when its rows are only the last of several requests. The fixes had no code
   review.
-- Total spend on the model API, corrected after the stress test: 14.68 EUR of 20.
+- 2026-11-13, after the stress test, at the owner's word ("do what is state of the art" on the open
+  points): the agent gets one closing turn at the call limit, tools switched off. One of the 825
+  recorded benchmark runs had reached the limit and the score reads rows, so the recorded numbers
+  were kept and not rerun. Two paid calls checked it (S5 again, and one run under a limit of one
+  request), 0.08 EUR, inside the stress test's approved cap. The 50-row limit and the request
+  language were left as they are: both change the measured agent, and a rerun is over budget.
+- Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
   responses, not checked against the invoice.
