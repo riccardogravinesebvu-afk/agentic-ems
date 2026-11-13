@@ -130,6 +130,7 @@ The scorer reads the rows a run returns, because rows are what a chart or anothe
 - The reference answers were computed twice by separate writers from one specification. The owner read ten of the 47 and did not recompute them. [`docs/golden.md`](docs/golden.md) says what was and was not verified.
 - The accuracy intervals treat each question, not each run, as one observation, because the five repeats of a question mostly agree. A code review after the runs found the first version counted every run and was too narrow; the intervals shown are the wider ones. No count changed.
 - Costs are priced from the token counts in the API responses and were not checked against the invoice. The pilots before each run are not in the block; [`docs/review-log.md`](docs/review-log.md) gives the total.
+- The agent's closing turn at the call limit was added after the recorded runs, which were not rerun. One of the 825 runs had reached the limit, and the score reads rows, which that turn cannot change.
 
 ## Run it
 
