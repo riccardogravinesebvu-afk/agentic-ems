@@ -232,6 +232,9 @@
     a pipe inside a code span still splits a table cell; the page hides the headline number on
     every run with several requests, also when the last rows are the answer.
   - Not checked by the review: nothing was run against the live API.
+- 2026-11-13: the hosted page was redeployed at 6025b5e, after the owner said yes when asked
+  (it had stayed at the build of f24d12e). The screenshot in the README was retaken from the
+  hosted page.
 - Total spend on the model API, corrected after these two calls: 14.76 EUR of 20.
 - Earlier total, before the stress test: 14.01 EUR of 20 (pilots 0.31, first run 6.82, third arm 6.80
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
