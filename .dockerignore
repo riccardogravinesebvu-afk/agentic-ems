@@ -1,0 +1,9 @@
+# Nothing enters the build unless it is listed here, so a new private file stays out by default.
+*
+!pyproject.toml
+!uv.lock
+!src/
+!frontend/
+frontend/node_modules/
+frontend/dist/
+**/__pycache__/
