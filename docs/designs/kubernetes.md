@@ -1,6 +1,6 @@
 # Design: run the demo server on Kubernetes
 
-Date: 2026-11-16. Status: waiting for the owner's approval.
+Date: 2026-11-16. Status: approved by the owner on 2026-11-16.
 
 ## Intent
 
