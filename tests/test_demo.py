@@ -182,6 +182,24 @@ def test_a_wildcard_or_empty_host_list_stops_the_server(con, monkeypatch, hosts)
         demo.build_app(con, lambda: None)
 
 
+@pytest.mark.parametrize(("env", "bound"), [({}, "127.0.0.1"), ({"DEMO_HOST": ""}, "127.0.0.1"),
+                                            ({"DEMO_HOST": "0.0.0.0"}, "0.0.0.0")])
+def test_serve_binds_to_localhost_unless_told_otherwise(monkeypatch, env, bound):
+    # An empty host would make uvicorn listen on every interface.
+    monkeypatch.delenv("DEMO_HOST", raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    served = {}
+    monkeypatch.setattr(demo.uvicorn, "run", lambda app, **kwargs: served.update(kwargs))
+    assert demo.main(["serve"]) == 0 and served == {"host": bound, "port": 8000}
+
+
+def test_serve_with_a_wildcard_host_list_exits_without_serving(monkeypatch, capsys):
+    monkeypatch.setenv("DEMO_ALLOWED_HOSTS", "*")
+    monkeypatch.setattr(demo.uvicorn, "run", lambda app, **kwargs: pytest.fail("served"))
+    assert demo.main(["serve"]) == 1 and "DEMO_ALLOWED_HOSTS" in capsys.readouterr().err
+
+
 def test_a_value_json_cannot_encode_is_an_error_then_done(con, monkeypatch):
     real = demo._answer
     monkeypatch.setattr(demo, "_answer", lambda record: real(record) | {"rows": [[object()]]})

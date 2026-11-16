@@ -26,7 +26,7 @@ jobs:
         working-directory: frontend
   kubernetes:
     # The image on a kind cluster (Kubernetes in Docker): deployed, rolled out and checked with real requests.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: kind depends on the runner's Docker
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

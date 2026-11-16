@@ -164,7 +164,7 @@ uv run python -m agentic_ems.benchmark.run --help
 
 ### Run it on Kubernetes
 
-The same server as a container, on a [kind](https://kind.sigs.k8s.io/) cluster (Kubernetes in Docker). This is a single-replica deployment tested on a kind cluster in CI, not a production cluster: no Ingress, no autoscaling, no registry. It needs Docker, kind and kubectl; CI uses kind v0.33.0 and kubectl v1.37.0.
+The same server as a container, on a [kind](https://kind.sigs.k8s.io/) cluster (Kubernetes in Docker). This is a single-replica deployment tested on a local kind cluster, with a CI job that repeats the test on every push; it is not a production cluster: no Ingress, no autoscaling, no registry. It needs Docker, kind and kubectl; CI uses kind v0.33.0 and kubectl v1.37.0.
 
 ```bash
 docker build -t agentic-ems:local .               # frontend, locked install, database from the seed

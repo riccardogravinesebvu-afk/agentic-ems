@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:  # a bad DEMO_ALLOWED_HOSTS
             print(exc, file=sys.stderr)
             return 1
-        uvicorn.run(app, host=os.environ.get(HOST_VAR, HOST), port=PORT)  # a container sets 0.0.0.0
+        uvicorn.run(app, host=os.environ.get(HOST_VAR) or HOST, port=PORT)  # a container sets 0.0.0.0; empty would bind everywhere
         return 0
     meter = Meter(args.eur_per_usd)  # every response is priced, those of a run that later fails included
     try:
