@@ -268,6 +268,82 @@
   with its unscored attempt, sample answers 0.08), priced from the token counts in the
   responses, not checked against the invoice.
 
+## 2026-11-16
+
+Running the demo on Kubernetes, on branch `kubernetes` (design and plan:
+[`designs/kubernetes.md`](designs/kubernetes.md), [`designs/kubernetes-plan.md`](designs/kubernetes-plan.md)).
+
+**Added.** `DEMO_HOST` and `DEMO_ALLOWED_HOSTS` in the demo server, with the defaults unchanged
+(127.0.0.1; `127.0.0.1,localhost`) and a wildcard or empty list refused at start; `Dockerfile` and
+`.dockerignore`; `deploy/k8s/deployment.yaml`, `service.yaml` and `check.sh`; a second CI job,
+`kubernetes`; a README section and a row in `stack.md`. The owner chose the configurable host list
+over probes that send `Host: localhost`, so that the Service also answers inside the cluster.
+
+**Versions**, read from the official release pages on this day: kind v0.33.0, kubectl v1.37.0 (both
+downloaded into a scratch folder and matched against the published sha256), node image
+`kindest/node:v1.37.0`, `python:3.14-slim-bookworm`, `node:22-bookworm-slim`, uv 0.9.24, each pinned
+by digest. Docker 29.1.3 on the owner's machine.
+
+**Checked on the owner's machine.**
+
+- The image run alone with `docker run --read-only --cap-drop ALL --security-opt no-new-privileges`:
+  `/api/health` returned `{"ok":true,"has_key":false}`, the page 200, `samples/1.json` the first
+  recorded answer, a request with `Host: evil.example` 400, a POST to `/api/ask` the "Set
+  ANTHROPIC_API_KEY" error; `id` printed `uid=10001 gid=10001`. No writable volume was needed.
+  `/app` holds only `.venv`, `data`, `frontend`, `src`; a search of the image for the private
+  files' names, `tests` and `results` found nothing. The image is 519 MB.
+- The README's commands, in order, on a kind cluster (18:43:09Z to 18:44:11Z with the images
+  already downloaded; the first cluster of the day took 6 min 52 s, nearly all of it the node
+  image download). Output, shortened only where kind prints its progress:
+
+  ```
+  ++ kind load docker-image agentic-ems:local --name agentic-ems
+  Image: "agentic-ems:local" with ID "sha256:5011d6d3..." not yet present on node "agentic-ems-control-plane", loading...
+  ++ kubectl apply -f deploy/k8s/
+  deployment.apps/agentic-ems created
+  service/agentic-ems created
+  ++ kubectl rollout status deployment/agentic-ems --timeout=120s
+  Waiting for deployment "agentic-ems" rollout to finish: 0 of 1 updated replicas are available...
+  deployment "agentic-ems" successfully rolled out
+  ++ deploy/k8s/check.sh
+  curl: (7) Failed to connect to localhost port 18000 after 0 ms: Connection refused
+  ok: the page answers 200
+  ok: the first recorded answer comes back
+  ok: no API key, recorded answers only
+  ok: a host not on the list gets 400
+  ok: agentic-ems answers 200 inside the cluster
+  ok: agentic-ems.default.svc.cluster.local answers 200 inside the cluster
+  check.sh exit 0
+  http://localhost:8000 -> 200
+  ```
+
+  The `curl: (7)` line is the first try before the port-forward is up; curl retries.
+- In the pod: `uid=10001 gid=10001`; `touch /app/x` and `touch /tmp/x` both answered "Read-only
+  file system".
+- Broken on purpose, twice. With the full Service name taken off the list, `check.sh` stopped at
+  that name with `HTTP Error 400: Bad Request` and exit 1. With both Service names off the list,
+  the probes got 400, the pod stayed `0/1` and `kubectl rollout status` timed out with exit 1.
+  After `kubectl apply` of the committed manifests, all checks passed again.
+- The optional Secret, with the value `placeholder-not-a-key`: after `kubectl rollout restart`,
+  `/api/health` returned `{"ok":true,"has_key":true}`. No question was asked, so no model call was
+  made and nothing was spent. The cluster was deleted at the end of each run.
+- `uv run pytest`: 349 passed offline (4 new tests: the host list, the refused wildcard and empty
+  list, the bind address, the exit on a bad list). ruff and mypy clean. Frontend tests: 24 passed.
+- A fresh reviewer (Opus 5.5) read the whole branch diff without running anything. Fixed from its
+  report: an empty `DEMO_HOST` would have bound to every interface; `.env*` files under `src/` or
+  `frontend/` could have entered the build; the new job's runner is now `ubuntu-24.04`; the README
+  and `stack.md` said "tested in CI" before the job had run. Left: the README's
+  `kubectl create secret ... --from-literal` shows the key to other local users for the moment
+  the command runs.
+
+**Not checked.**
+
+- The `kubernetes` job has not run on GitHub: the branch is not pushed, on the owner's rule. The
+  README therefore says the test ran on a local kind cluster. The job's 20-minute limit (the
+  `test` job keeps 15) is a guess from the 6 min 52 s above, not a measurement on a runner.
+- No question was asked on the cluster with a real key.
+- Only amd64 was built and run.
+
 ## Owner rewording
 
 none yet
