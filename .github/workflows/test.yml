@@ -24,3 +24,28 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+  kubernetes:
+    # The image on a kind cluster (Kubernetes in Docker): deployed, rolled out and checked with real requests.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker build -t agentic-ems:local .
+      - name: Install kind v0.33.0 and kubectl v1.37.0, checked against their sha256
+        run: |
+          mkdir -p "$HOME/bin" && cd "$HOME/bin"
+          curl -fsSLo kind https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64
+          curl -fsSLo kubectl https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl
+          sha256sum -c - <<'SUMS'
+          aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d  kind
+          6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f  kubectl
+          SUMS
+          chmod +x kind kubectl
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - run: kind create cluster --name agentic-ems --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+      - run: kind load docker-image agentic-ems:local --name agentic-ems
+      - run: kubectl apply -f deploy/k8s/
+      - run: kubectl rollout status deployment/agentic-ems --timeout=120s
+      - run: deploy/k8s/check.sh
+      - if: failure()
+        run: kubectl describe deployment,pods; kubectl logs deployment/agentic-ems --tail=50
