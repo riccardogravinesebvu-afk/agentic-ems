@@ -336,11 +336,16 @@ by digest. Docker 29.1.3 on the owner's machine.
   `kubectl create secret ... --from-literal` shows the key to other local users for the moment
   the command runs.
 
+**Checked on GitHub.** The owner allowed the push of the branch (not a merge). On e843ff9 both
+jobs passed (https://github.com/riccardogravinesebvu-afk/agentic-ems/actions/runs/43933342981): `test`, and `kubernetes` in 1 min 25 s, with
+the rollout and the same six `ok:` lines from `check.sh` in its log. The job had been given 20
+minutes as a guess; with that measurement it is back to 15, like `test`, and the README now says
+"tested on a kind cluster in CI". Its one annotation is the Node 20 deprecation notice for the
+checkout action, already known from `test`.
+
 **Not checked.**
 
-- The `kubernetes` job has not run on GitHub: the branch is not pushed, on the owner's rule. The
-  README therefore says the test ran on a local kind cluster. The job's 20-minute limit (the
-  `test` job keeps 15) is a guess from the 6 min 52 s above, not a measurement on a runner.
+- Nothing on a cluster other than kind.
 - No question was asked on the cluster with a real key.
 - Only amd64 was built and run.
 
