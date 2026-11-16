@@ -1,0 +1,75 @@
+# One replica of the demo server with recorded answers. Build and load the image first: see the README.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-ems
+  labels:
+    app: agentic-ems
+spec:
+  replicas: 1
+  # The "one model call at a time" limit is a lock inside one process: never two pods, not even during an update.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: agentic-ems
+  template:
+    metadata:
+      labels:
+        app: agentic-ems
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: agentic-ems:local
+          imagePullPolicy: IfNotPresent # the image is loaded into the cluster, not pulled from a registry
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # The server answers only to these Host names (a defence against DNS rebinding): the Service's short
+            # and full name in the "default" namespace, and localhost for kubectl port-forward.
+            - name: DEMO_ALLOWED_HOSTS
+              value: agentic-ems,agentic-ems.default.svc.cluster.local,localhost,127.0.0.1
+            # Without this Secret the server shows recorded answers only.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agentic-ems-api-key
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          # Probes arrive on the pod's IP, so they name the Service in the Host header.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: agentic-ems
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: agentic-ems
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
