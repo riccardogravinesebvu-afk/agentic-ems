@@ -165,6 +165,23 @@ def test_localhost_is_served(con):
     assert client(demo.build_app(con, lambda: None), "http://localhost:8000").get("/api/health").status_code == 200
 
 
+def test_an_allowed_host_from_the_environment_is_served(con, monkeypatch):
+    # In a cluster the Service's names replace the defaults; the port in the Host header is ignored.
+    monkeypatch.setenv("DEMO_ALLOWED_HOSTS", "agentic-ems, agentic-ems.default.svc.cluster.local,localhost")
+    app = demo.build_app(con, lambda: None)
+    for host in ("agentic-ems", "agentic-ems.default.svc.cluster.local", "localhost"):
+        assert client(app, f"http://{host}:8000").get("/api/health").status_code == 200
+    for host in ("127.0.0.1", "evil.example", "other.default.svc.cluster.local"):
+        assert client(app, f"http://{host}:8000").get("/api/health").status_code == 400
+
+
+@pytest.mark.parametrize("hosts", ["*", "localhost,*.example.com", "", " , "])
+def test_a_wildcard_or_empty_host_list_stops_the_server(con, monkeypatch, hosts):
+    monkeypatch.setenv("DEMO_ALLOWED_HOSTS", hosts)
+    with pytest.raises(ValueError, match="DEMO_ALLOWED_HOSTS"):
+        demo.build_app(con, lambda: None)
+
+
 def test_a_value_json_cannot_encode_is_an_error_then_done(con, monkeypatch):
     real = demo._answer
     monkeypatch.setattr(demo, "_answer", lambda record: real(record) | {"rows": [[object()]]})

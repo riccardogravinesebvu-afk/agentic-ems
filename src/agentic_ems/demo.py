@@ -36,6 +36,7 @@ MAX_QUESTION_CHARS = 500
 MAX_BODY_BYTES = 8192  # a 500-character question fits many times over
 EFFORT, MAX_TOKENS = "medium", 16000
 KEY = "ANTHROPIC_API_KEY"
+HOST_VAR, HOSTS_VAR = "DEMO_HOST", "DEMO_ALLOWED_HOSTS"  # the address to bind; the Host names to answer to
 SAMPLE_QUESTIONS = (
     "How much electricity did the whole plant use each day in March 2026?",
     "Break down Stamping by line for May 2026.",
@@ -45,6 +46,14 @@ SAMPLE_QUESTIONS = (
     ),
     "Which five machines used the most energy last quarter?",
 )
+
+
+def allowed_hosts() -> list[str]:
+    """The Host names the server answers to, from DEMO_ALLOWED_HOSTS; any other host gets 400 (DNS rebinding)."""
+    hosts = [h.strip() for h in os.environ.get(HOSTS_VAR, "127.0.0.1,localhost").split(",") if h.strip()]
+    if not hosts or any("*" in h for h in hosts):  # the middleware would read "*" as a wildcard
+        raise ValueError(f"{HOSTS_VAR} must list at least one host name, comma-separated, with no wildcard.")
+    return hosts
 
 
 def _demo_model() -> BaseChatModel:
@@ -171,7 +180,7 @@ def build_app(con, model_factory: Callable[[], BaseChatModel] = _demo_model) -> 
     if DIST.is_dir():
         routes.append(Mount("/", StaticFiles(directory=DIST, html=True)))  # StaticFiles refuses paths outside DIST
     # The Host check stops DNS rebinding from making an outside page same-origin; it ignores the port.
-    return Starlette(routes=routes, middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])])
+    return Starlette(routes=routes, middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())])
 
 
 def _text(record: RunRecord) -> str:
@@ -227,7 +236,12 @@ def main(argv: list[str] | None = None) -> int:
         print(exc, file=sys.stderr)
         return 1
     if args.command == "serve":
-        uvicorn.run(build_app(con), host=HOST, port=PORT)
+        try:
+            app = build_app(con)
+        except ValueError as exc:  # a bad DEMO_ALLOWED_HOSTS
+            print(exc, file=sys.stderr)
+            return 1
+        uvicorn.run(app, host=os.environ.get(HOST_VAR, HOST), port=PORT)  # a container sets 0.0.0.0
         return 0
     meter = Meter(args.eur_per_usd)  # every response is priced, those of a run that later fails included
     try:
