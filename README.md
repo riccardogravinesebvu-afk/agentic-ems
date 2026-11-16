@@ -162,6 +162,32 @@ Re-running the paid benchmark needs a key and a budget; the harness refuses to o
 uv run python -m agentic_ems.benchmark.run --help
 ```
 
+### Run it on Kubernetes
+
+The same server as a container, on a [kind](https://kind.sigs.k8s.io/) cluster (Kubernetes in Docker). This is a single-replica deployment tested on a kind cluster in CI, not a production cluster: no Ingress, no autoscaling, no registry. It needs Docker, kind and kubectl; CI uses kind v0.33.0 and kubectl v1.37.0.
+
+```bash
+docker build -t agentic-ems:local .               # frontend, locked install, database from the seed
+kind create cluster --name agentic-ems --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+kind load docker-image agentic-ems:local --name agentic-ems
+kubectl apply -f deploy/k8s/                      # one Deployment, one ClusterIP Service
+kubectl rollout status deployment/agentic-ems --timeout=120s
+deploy/k8s/check.sh                               # the page, a recorded answer, a refused host, the Service by name
+kubectl port-forward service/agentic-ems 8000:8000   # then open http://localhost:8000
+kind delete cluster --name agentic-ems
+```
+
+The pod runs as a non-root user on a read-only filesystem and shows recorded answers only. The server answers only to the Host names in `DEMO_ALLOWED_HOSTS` (comma-separated, no wildcards; default `127.0.0.1,localhost`), which stops a web page on another site from reaching it through DNS rebinding; the Deployment sets the list to the Service's names in the `default` namespace plus localhost, so another namespace means editing that line.
+
+To take your own questions, the Deployment reads the key from an optional Secret. Any pod in the cluster can then ask questions on that key, and there is still one model call at a time:
+
+```bash
+kubectl create secret generic agentic-ems-api-key --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+kubectl rollout restart deployment/agentic-ems
+```
+
+I ran this with a placeholder value to see that the key reaches the server; no question was asked on a cluster with a real key.
+
 ## Why this exists
 
 I run a system of this kind in production for seven manufacturers. That code is not mine to publish and stays where it is. This repository is the method, built from zero so it can be read, run and criticised: what happens when the model stops writing SQL and a semantic layer decides how each metric aggregates.
