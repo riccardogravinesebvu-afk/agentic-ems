@@ -4,6 +4,8 @@ Written from scratch on synthetic data. No code, schema or data from any employe
 
 Live demo: https://agentic-ems-demo.vercel.app (four recorded answers, no key, no model call).
 
+Stack: Python, LangGraph on the Claude API, DuckDB, an MCP server, React and TypeScript, Docker, and Kubernetes manifests tested on a kind cluster in CI. Versions and reasons are in [`docs/stack.md`](docs/stack.md).
+
 ## What I found
 
 With the rules in its prompt, the model that writes SQL made no mistake. Without them it returned 12 wrong values in 275 runs, 4 of them double counts. The semantic layer cannot double count, but it covers only its four metrics, and outside them it refused or returned ingredients, not answers.
